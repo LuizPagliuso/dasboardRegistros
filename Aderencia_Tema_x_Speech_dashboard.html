@@ -1,0 +1,431 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Aderência Tema x Transcrição (Speech)</title>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0"></script>
+
+  <style>
+    :root{
+      --bg:#0b1020; --card:#121a33; --text:#e7ecff; --muted:#aab3d6; --line:rgba(255,255,255,.08);
+      --good:#22c55e; --warn:#f59e0b; --bad:#ef4444; --accent:#7c3aed;
+      --shadow: 0 10px 30px rgba(0,0,0,.35); --radius:16px; --pad:16px;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, "Helvetica Neue", Helvetica;
+      background: radial-gradient(1200px 600px at 10% -10%, rgba(124,58,237,.35), transparent 60%),
+                  radial-gradient(900px 500px at 90% 0%, rgba(34,197,94,.22), transparent 60%),
+                  var(--bg);
+      color:var(--text);
+    }
+    header{padding:24px 20px 12px;max-width:1200px;margin:0 auto;display:flex;align-items:flex-end;justify-content:space-between;gap:16px;}
+    .title{display:flex;flex-direction:column;gap:6px;}
+    h1{margin:0;font-size:18px;letter-spacing:.2px;font-weight:700;}
+    .subtitle{color:var(--muted);font-size:13px;line-height:1.4;}
+    .pill{display:inline-flex;gap:10px;align-items:center;padding:10px 12px;background:rgba(255,255,255,.06);border:1px solid var(--line);
+      border-radius:999px;box-shadow:var(--shadow);font-size:12px;color:var(--muted);white-space:nowrap;}
+    .wrap{max-width:1200px;margin:0 auto;padding:10px 20px 28px;}
+    .grid{display:grid;grid-template-columns:repeat(12,1fr);gap:14px;}
+    .card{background:linear-gradient(180deg, rgba(255,255,255,.06), transparent 80%), var(--card);
+      border:1px solid var(--line);border-radius:var(--radius);padding:var(--pad);box-shadow:var(--shadow);min-height:120px;}
+    .card h2{margin:0 0 10px 0;font-size:13px;font-weight:600;color:var(--muted);letter-spacing:.2px;}
+    .kpi{display:flex;align-items:flex-end;gap:10px;}
+    .kpi .value{font-size:32px;font-weight:800;line-height:1;}
+    .kpi .unit{color:var(--muted);font-size:13px;padding-bottom:4px;}
+    .kpi .delta{margin-left:auto;font-size:12px;color:var(--muted);border:1px solid var(--line);padding:6px 10px;border-radius:999px;background:rgba(0,0,0,.12);}
+    .row{display:flex;gap:10px;align-items:center;justify-content:space-between;margin-top:10px;padding-top:10px;border-top:1px solid var(--line);color:var(--muted);font-size:12px;}
+    .badge{display:inline-flex;align-items:center;gap:8px;padding:6px 10px;border-radius:999px;border:1px solid var(--line);background:rgba(255,255,255,.04);color:var(--muted);font-size:12px;}
+    .dot{width:8px;height:8px;border-radius:99px;background:var(--accent)}
+    .controls{display:flex;gap:10px;align-items:center;justify-content:flex-end;flex-wrap:wrap;}
+    select,input{background:rgba(255,255,255,.06);border:1px solid var(--line);color:var(--text);padding:10px 12px;border-radius:12px;outline:none;font-size:13px;}
+    .span-4{grid-column: span 4;} .span-6{grid-column: span 6;} .span-12{grid-column: span 12;}
+    .chartWrap{height:320px}
+    canvas{width:100% !important;height:100% !important;}
+    table{width:100%;border-collapse:collapse;font-size:13px;overflow:hidden;border-radius:14px;}
+    thead th{text-align:left;color:var(--muted);font-weight:600;font-size:12px;padding:10px 12px;border-bottom:1px solid var(--line);background:rgba(0,0,0,.12);}
+    tbody td{padding:11px 12px;border-bottom:1px solid var(--line);color:var(--text);}
+    tbody tr:hover{background:rgba(255,255,255,.03)}
+    .num{text-align:right;font-variant-numeric:tabular-nums;}
+    .pct{text-align:right;font-variant-numeric:tabular-nums;}
+    .status{display:inline-flex;align-items:center;gap:8px;padding:6px 10px;border-radius:999px;border:1px solid var(--line);font-size:12px;color:var(--muted);background:rgba(255,255,255,.04);}
+    .status .dot{background:var(--good)} .status.warn .dot{background:var(--warn)} .status.bad .dot{background:var(--bad)}
+    .muted{color:var(--muted)}
+    footer{max-width:1200px;margin:0 auto;padding:0 20px 30px;color:var(--muted);font-size:12px;}
+    @media (max-width:980px){ .span-4,.span-6{grid-column: span 12;} header{align-items:flex-start;flex-direction:column} .controls{justify-content:flex-start} .chartWrap{height:280px} }
+  </style>
+</head>
+
+<body>
+  <header>
+    <div class="title">
+      <h1>Aderência Tema x Transcrição (Speech)</h1>
+      <div class="subtitle">Base: aba <b>Sheet 1</b>. Métrica: aderência textual (termos do tema presentes na transcrição).</div>
+    </div>
+    <div class="controls">
+      <span class="pill">📌 Filtro: <b>&nbsp;Segmento&nbsp;</b></span>
+      <select id="segmentFilter"></select>
+      <input id="searchBox" placeholder="Buscar segmento..." />
+    </div>
+  </header>
+
+  <div class="wrap">
+    <div class="grid">
+      <div class="card span-4">
+        <h2>Aderência geral</h2>
+        <div class="kpi">
+          <div class="value" id="kpiAderencia">—</div><div class="unit">%</div>
+          <div class="delta" id="kpiTotal">— registros</div>
+        </div>
+        <div class="row">
+          <span class="badge"><span class="dot"></span> Base completa (todas as linhas)</span>
+          <span id="kpiAderentes">— aderentes</span>
+        </div>
+      </div>
+
+      <div class="card span-4">
+        <h2>Possível desvio</h2>
+        <div class="kpi">
+          <div class="value" id="kpiDesvio">—</div><div class="unit">%</div>
+          <div class="delta" id="kpiNaoAderentes">— não-aderentes</div>
+        </div>
+        <div class="row">
+          <span class="badge"><span class="dot" style="background:var(--warn)"></span> Pode incluir sinônimo/multitema</span>
+          <span id="kpiNota">Triagem objetiva</span>
+        </div>
+      </div>
+
+      <div class="card span-4">
+        <h2>Leitura rápida</h2>
+        <div class="status" id="statusBox"><span class="dot"></span><span id="statusText">—</span></div>
+        <div class="row"><span>Segmentos:</span><span id="kpiSegmentos">—</span></div>
+        <div class="row" style="border-top:none;padding-top:0;margin-top:0"><span>Maior risco:</span><span id="kpiPior">—</span></div>
+      </div>
+
+      <div class="card span-6">
+        <h2>Aderência por segmento</h2>
+        <div class="chartWrap"><canvas id="barChart"></canvas></div>
+      </div>
+
+      <div class="card span-6">
+        <h2>Distribuição geral</h2>
+        <div class="chartWrap"><canvas id="donutChart"></canvas></div>
+      </div>
+
+      <div class="card span-12">
+        <h2>Tabela por segmento</h2>
+        <div style="overflow:auto;border-radius:14px">
+          <table>
+            <thead>
+              <tr>
+                <th>Segmento</th><th class="num">Qtde</th><th class="num">Aderentes</th><th class="num">Não-aderentes</th><th class="pct">% Aderente</th><th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="tableBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card span-12">
+        <h2>Operadores com maior inaderência (outliers)</h2>
+        <div class="row" style="margin-top:0">
+          <span class="muted" id="outlierNote">—</span>
+          <span class="muted">Ordenado por % inaderente</span>
+        </div>
+        <div style="overflow:auto;border-radius:14px;margin-top:10px">
+          <table>
+            <thead>
+              <tr>
+                <th>Operador</th><th>Segmento principal</th><th class="num">Qtde</th><th class="pct">% Inaderente</th><th>Tema mais frequente nas inaderências</th>
+              </tr>
+            </thead>
+            <tbody id="opBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    Observação: “não-aderente” = termos do tema não encontrados na fala. Pode representar erro real, sinônimo, tema genérico ou ligação multitema.
+  </footer>
+
+  <script>
+    const MIN_N = 100;   // mínimo de casos por operador
+    const TOP_N = 15;    // top N outliers
+
+    const DATA = {"total":34855,"aderentes":32362,"segmentos":[{"segmento":"Conta Digital","qtde":8987,"aderentes":8444},{"segmento":"Investimentos","qtde":3937,"aderentes":3794},{"segmento":"Meios de Pagamento","qtde":6289,"aderentes":5701},{"segmento":"Regulamentados","qtde":7351,"aderentes":6778},{"segmento":"Vip Banking PF","qtde":5498,"aderentes":5056},{"segmento":"Vip Banking PJ","qtde":2791,"aderentes":2587},{"segmento":"—","qtde":2,"aderentes":2}],"operator_stats":[{"operador":"NATHAN MARCONDES DE ARAUJO","segmento":"Conta Digital","total":119,"naoAderentes":7,"temaMaisErrou":"ATENDIMENTO | REGISTROS GERAIS | SOLICITAÇÃO DE PROTOCOLO DE ATENDIMENTO","pct_inaderente":5.882352941176471},{"operador":"VANESSA CAMARGO GARBELOTO OTRERA","segmento":"Vip Banking PJ","total":91,"naoAderentes":3,"temaMaisErrou":"ATENDIMENTO | TRANSFERÊNCIAS | DIRECIONADO PARA INTERPAG","pct_inaderente":3.2967032967032965},{"operador":"IGOR HENRIQUE MARTINS KAWAKAMI","segmento":"Meios de Pagamento","total":156,"naoAderentes":6,"temaMaisErrou":"CD PF | SUSPEITA DE FRAUDE | TRANSAÇÃO - SEM INDICIOS","pct_inaderente":3.8461538461538463},{"operador":"CARLOS EDUARDO FERREIRA BRITO","segmento":"Vip Banking PF","total":87,"naoAderentes":7,"temaMaisErrou":"ATENDIMENTO | REGISTROS GERAIS | CONTATO DE TERCEIROS","pct_inaderente":8.045977011494253},{"operador":"EDUARDA DOS SANTOS BRANCO","segmento":"Conta Digital","total":183,"naoAderentes":8,"temaMaisErrou":"ATENDIMENTO | TRANSFERÊNCIAS | DIRECIONADO PARA VIP BANKING PF","pct_inaderente":4.371584699453552},{"operador":"Mateus da Silva da Cruz","segmento":"Investimentos","total":381,"naoAderentes":13,"temaMaisErrou":"ATENDIMENTO | TRANSFERÊNCIAS | DIRECIONADO PARA VIP BANKING BUSINESS","pct_inaderente":3.4120734908136483},{"operador":"FERNANDA DA SILVA LOPES","segmento":"Regulamentados","total":308,"naoAderentes":15,"temaMaisErrou":"ATENDIMENTO | TRANSFERÊNCIAS | DIRECIONADO PARA CRÉDITO TRABALHADOR","pct_inaderente":4.87012987012987},{"operador":"APARECIDA CARLA DOS SANTOS AMADEU","segmento":"Meios de Pagamento","total":65,"naoAderentes":6,"temaMaisErrou":"EMPRÉSTIMO CONSIGNADO | ATENDIMENTO | TRANSFERÊNCIA ADVISOR PRIME","pct_inaderente":9.23076923076923},{"operador":"PRISCILA PEREIRA","segmento":"Vip Banking PF","total":131,"naoAderentes":19,"temaMaisErrou":"ATENDIMENTO | REGISTROS GERAIS | CONTATO DE TERCEIROS","pct_inaderente":14.50381679389313},{"operador":"CAROLINE FERNANDA TOLEDO CAVALCANTI","segmento":"Vip Banking PF","total":129,"naoAderentes":4,"temaMaisErrou":"CD PF | SUSPEITA DE FRAUDE | TRANSAÇÃO - SEM INDICIOS","pct_inaderente":3.10077519379845},{"operador":"WILLIAM MARTINS CANDIDO","segmento":"Meios de Pagamento","total":172,"naoAderentes":2,"temaMaisErrou":"ATENDIMENTO | TRANSFERÊNCIAS | DIRECIONADO PARA VIP BANKING PJ","pct_inaderente":1.1627906976744187},{"operador":"MARIANA JAMILE DA CRUZ NOGUEIRA","segmento":"Vip Banking PF","total":119,"naoAderentes":8,"temaMaisErrou":"ATENDIMENTO | REGISTROS GERAIS | CONTATO DE TERCEIROS","pct_inaderente":6.722689075630252},{"operador":"Daniela Cristina Nogueira","segmento":"Vip Banking PF","total":79,"naoAderentes":15,"temaMaisErrou":"ATENDIMENTO | REGISTROS GERAIS | ELOGIO","pct_inaderente":18.9873417721519},{"operador":"LUCAS BATISTA DA SILVA","segmento":"Conta Digital","total":173,"naoAderentes":4,"temaMaisErrou":"CD PF | GOLPE | PIX","pct_inaderente":2.3121387283236996},{"operador":"ALINE VASQUES SILVERIO DE SOUSA","segmento":"Regulamentados","total":150,"naoAderentes":14,"temaMaisErrou":"ATENDIMENTO | REGISTROS GERAIS | CONTATO DE TERCEIROS","pct_inaderente":9.333333333333334},{"operador":"TATIANE BASILIO SANTOS","segmento":"Conta Digital","total":180,"naoAderentes":2,"temaMaisErrou":"ATENDIMENTO | TRANSFERÊNCIAS | DIRECIONADO PARA SMALLS","pct_inaderente":1.1111111111111112},{"operador":"LUIGI RIBEIRO MAREGA","segmento":"Investimentos","total":81,"naoAderentes":11,"temaMaisErrou":"ATENDIMENTO | TRANSFERÊNCIAS | DIRECIONADO PARA INVESTIMENTOS","pct_inaderente":13.580246913580247},{"operador":"ROBERTA CASSIA DE JESUS MACHADO","segmento":"Regulamentados","total":158,"naoAderentes":11,"temaMaisErrou":"ATENDIMENTO | TRANSFERÊNCIAS | DIRECIONADO PARA SMALLS","pct_inaderente":6.962025316455696},{"operador":"Thayla Danielle Oliveira Inacio","segmento":"Vip Banking PJ","total":135,"naoAderentes":4,"temaMaisErrou":"ATENDIMENTO | REGISTROS GERAIS | CONTATO DE TERCEIROS","pct_inaderente":2.962962962962963},{"operador":"BEATRIZ DOS SANTOS SIMOES","segmento":"Regulamentados","total":143,"naoAderentes":7,"temaMaisErrou":"ATENDIMENTO | TRANSFERÊNCIAS | DIRECIONADO PARA EMPRÉSTIMOS","pct_inaderente":4.895104895104895},{"operador":"Naddya das Chagas Maia","segmento":"Regulamentados","total":275,"naoAderentes":8,"temaMaisErrou":"ATENDIMENTO | TRANSFERÊNCIAS | DIRECIONADO PARA CARTÃO","pct_inaderente":2.909090909090909},{"operador":"MARIANA ALVES CICOTOSTE","segmento":"Regulamentados","total":350,"naoAderentes":28,"temaMaisErrou":"ATENDIMENTO | REGISTROS GERAIS | CONTATO DE TERCEIROS","pct_inaderente":8.0},{"operador":"DAYANE JACQUELINE MORENO GATI","segmento":"Regulamentados","total":253,"naoAderentes":91,"temaMaisErrou":"ATENDIMENTO | TRANSFERÊNCIAS | DIRECIONADO PARA SMALLS","pct_inaderente":35.96837944664031},{"operador":"Breno Leonardo Almeida da Silva","segmento":"Vip Banking PJ","total":39,"naoAderentes":4,"temaMaisErrou":"ATENDIMENTO | REGISTROS GERAIS | CONTATO DE TERCEIROS","pct_inaderente":10.256410256410257},{"operador":"KELLY TORRES","segmento":"Regulamentados","total":139,"naoAderentes":0,"temaMaisErrou":"","pct_inaderente":0.0},{"operador":"Maysa Eduarda Coelho Araujo","segmento":"Regulamentados","total":186,"naoAderentes":4,"temaMaisErrou":"CD PF | SUSPEITA DE FRAUDE | TRANSAÇÃO - SEM INDICIOS","pct_inaderente":2.150537634408602},{"operador":"MANUELA FERREIRA PAES RAIMUNDO","segmento":"Vip Banking PJ","total":144,"naoAderentes":28,"temaMaisErrou":"ATENDIMENTO | REGISTROS GERAIS | CONTATO DE TERCEIROS","pct_inaderente":19.444444444444443},{"operador":"ANDERSON RICARDO DE SOUZA EGYDIO","segmento":"Regulamentados","total":213,"naoAderentes":70,"temaMaisErrou":"CARTÃO | LIMITE DE CRÉDITO | INFORMAÇÕES GERAIS","pct_inaderente":32.863849765258216},{"operador":"Bruno Henrique Negreiros do Amaral","segmento":"Investimentos","total":166,"naoAderentes":23,"temaMaisErrou":"ATENDIMENTO | TRANSFERÊNCIAS | DIRECIONADO PARA INVESTIMENTOS","pct_inaderente":13.855421686746988},{"operador":"EMANUELA FERNANDES FERREIRA","segmento":"Conta Digital","total":16,"naoAderentes":2,"temaMaisErrou":"ATENDIMENTO | TRANSFERÊNCIAS | DIRECIONADO PARA INTERPAG","pct_inaderente":12.5},{"operador":"JULIANO JORGE PEDROSO","segmento":"Conta Digital","total":178,"naoAderentes":7,"temaMaisErrou":"ATENDIMENTO | TRANSFERÊNCIAS | DIRECIONADO PARA COBRANÇA","pct_inaderente":3.932584269662921},{"operador":"Maya Stroppa dos Santos","segmento":"Vip Banking PF","total":85,"naoAderentes":5,"temaMaisErrou":"ATENDIMENTO | PRIME/WIN | EXCEÇÕES DEFINIDAS","pct_inaderente":5.882352941176471},{"operador":"CHAYENNE CRISTINA BATISTA","segmento":"Meios de Pagamento","total":47,"naoAderentes":1,"temaMaisErrou":"ATENDIMENTO | REGISTROS GERAIS | CONTATO DE TERCEIROS","pct_inaderente":2.127659574468085},{"operador":"KEREM SEFORA SANTOS SILVA","segmento":"Conta Digital","total":100,"naoAderentes":1,"temaMaisErrou":"ATENDIMENTO | TRANSFERÊNCIAS | DIRECIONADO PARA INVESTIMENTOS","pct_inaderente":1.0},{"operador":"DAIANNE CAROLINA DA SILVA","segmento":"Regulamentados","total":246,"naoAderentes":9,"temaMaisErrou":"ATENDIMENTO | REGISTROS GERAIS | CONTATO DE TERCEIROS","pct_inaderente":3.658536585365854},{"operador":"EDUARDA PEREIRA LIMA","segmento":"Meios de Pagamento","total":158,"naoAderentes":1,"temaMaisErrou":"ATENDIMENTO | TRANSFERÊNCIAS | DIRECIONADO PARA COBRANÇA","pct_inaderente":0.6329113924050633},{"operador":"Daisa Matos Caldeira","segmento":"Vip Banking PJ","total":106,"naoAderentes":5,"temaMaisErrou":"ATENDIMENTO | TRANSFERÊNCIAS | DIRECIONADO PARA COBRANÇA","pct_inaderente":4.716981132075472},{"operador":"Gilvania Maria Rodrigues Ferreira","segmento":"Vip Banking PJ","total":154,"naoAderentes":20,"temaMaisErrou":"ATENDIMENTO | REGISTROS GERAIS | CONTATO DE TERCEIROS","pct_inaderente":12.987012987012987},{"operador":"GABRIEL LANNIG TEIXEIRA DA SILVA","segmento":"Meios de Pagamento","total":158,"naoAderentes":6,"temaMaisErrou":"CARTÃO | LIMITE DE CRÉDITO | INFORMAÇÕES GERAIS","pct_inaderente":3.7974683544303796},{"operador":"RAFAEL SOARES DE AZEVEDO MANSO","segmento":"Conta Digital","total":337,"naoAderentes":77,"temaMaisErrou":"CARTÃO | LIMITE DE CRÉDITO | INFORMAÇÕES GERAIS","pct_inaderente":22.8486646884273},{"operador":"Nathália de Souza Trindade","segmento":"Conta Digital","total":139,"naoAderentes":14,"temaMaisErrou":"CD PF | SUSPEITA DE FRAUDE | TRANSAÇÃO - SEM INDICIOS","pct_inaderente":10.071942446043165},{"operador":"ANNA DALZIRA MARTINS","segmento":"Vip Banking PF","total":147,"naoAderentes":9,"temaMaisErrou":"ATENDIMENTO | TRANSFERÊNCIAS | DIRECIONADO PARA VIP BANKING PF","pct_inaderente":6.122448979591836},{"operador":"Gabrielly Fernanda Gubolin Nardelli","segmento":"Regulamentados","total":367,"naoAderentes":7,"temaMaisErrou":"ATENDIMENTO | REGISTROS GERAIS | CONTATO DE TERCEIROS","pct_inaderente":1.9073569482288828},{"operador":"VANESSA BRAGA BOLOGNANI GUIMARAES","segmento":"Investimentos","total":201,"naoAderentes":7,"temaMaisErrou":"ATENDIMENTO | TRANSFERÊNCIAS | DIRECIONADO PARA SMALLS","pct_inaderente":3.482587064676617},{"operador":"EDNA CRISTINA FACO","segmento":"Regulamentados","total":101,"naoAderentes":1,"temaMaisErrou":"ATENDIMENTO | REGISTROS GERAIS | CONTATO DE TERCEIROS","pct_inaderente":0.9900990099009901},{"operador":"GIOVANNA DE SOUZA SILVA","segmento":"Conta Digital","total":168,"naoAderentes":7,"temaMaisErrou":"ATENDIMENTO | TRANSFERÊNCIAS | DIRECIONADO PARA EMPRÉSTIMOS","pct_inaderente":4.166666666666667},{"operador":"SULIVAN DANIEL ALVES DE OLIVEIRA","segmento":"Conta Digital","total":107,"naoAderentes":2,"temaMaisErrou":"CD PF | GOLPE | TED/PAGAMENTO DE BOLETO","pct_inaderente":1.8691588785046729},{"operador":"JOAO FILIPE RAMOS RIBEIRO SANCHEZ","segmento":"Vip Banking PF","total":66,"naoAderentes":0,"temaMaisErrou":"","pct_inaderente":0.0},{"operador":"DAYANNE CAETANO DA SILVA CRUZ","segmento":"Conta Digital","total":230,"naoAderentes":4,"temaMaisErrou":"ATENDIMENTO | TRANSFERÊNCIAS | DIRECIONADO PARA COBRANÇA","pct_inaderente":1.7391304347826086},{"operador":"CLAUDIO VIANA DA ROCHA","segmento":"Vip Banking PF","total":75,"naoAderentes":5,"temaMaisErrou":"ATENDIMENTO | REGISTROS GERAIS | CONTATO DE TERCEIROS","pct_inaderente":6.666666666666667},{"operador":"ANGELICA DIAS","segmento":"Conta Digital","total":216,"naoAderentes":14,"temaMaisErrou":"ATENDIMENTO | RECLAMAÇÃO | RECLAMAÇÃO DE ATENDIMENTO PRESTADO","pct_inaderente":6.481481481481482},{"operador":"MARIA JOSELITA DOS SANTOS TIBA","segmento":"Regulamentados","total":300,"naoAderentes":50,"temaMaisErrou":"ATENDIMENTO | TRANSFERÊNCIAS | DIRECIONADO PARA CRÉDITO TRABALHADOR","pct_inaderente":16.666666666666668},{"operador":"SAMUEL ARTHUR ALVES MOTA","segmento":"Meios de Pagamento","total":97,"naoAderentes":0,"temaMaisErrou":"","pct_inaderente":0.0},{"operador":"Carla Cristina dos Santos Rueda","segmento":"Vip Banking PJ","total":143,"naoAderentes":8,"temaMaisErrou":"ATENDIMENTO | REGISTROS GERAIS | CONTATO DE TERCEIROS","pct_inaderente":5.594405594405594},{"operador":"LUCIA HELENA BITTENCOURT","segmento":"Regulamentados","total":237,"naoAderentes":15,"temaMaisErrou":"ATENDIMENTO | TRANSFERÊNCIAS | DIRECIONADO PARA CONTA PF/MEI","pct_inaderente":6.329113924050633},{"operador":"GABRIELA GOULART BENEDINI","segmento":"Conta Digital","total":191,"naoAderentes":3,"temaMaisErrou":"ATENDIMENTO | TRANSFERÊNCIAS | DIRECIONADO PARA VIP BANKING BUSINESS","pct_inaderente":1.5706806282722514},{"operador":"Thamires Cristina Tavares de Souza","segmento":"Investimentos","total":103,"naoAderentes":3,"temaMaisErrou":"CD PF | ENCERRAMENTO DE CONTA | ENCERRAMENTO POR ÓBITO","pct_inaderente":2.912621359223301},{"operador":"THAINA RIBEIRO DE OLIVEIRA DA SILVA","segmento":"Regulamentados","total":304,"naoAderentes":6,"temaMaisErrou":"ATENDIMENTO | TRANSFERÊNCIAS | DIRECIONADO PARA SMALLS","pct_inaderente":1.9736842105263157},{"operador":"Camila Pelegrino Bassan","segmento":"Meios de Pagamento","total":106,"naoAderentes":4,"temaMaisErrou":"ATENDIMENTO | TRANSFERÊNCIAS | DIRECIONADO PARA CARTÃO","pct_inaderente":3.7735849056603774},{"operador":"Eduarda Matias Elias","segmento":"Meios de Pagamento","total":130,"naoAderentes":8,"temaMaisErrou":"ATENDIMENTO | REGISTROS GERAIS | CONTATO DE TERCEIROS","pct_inaderente":6.153846153846154},{"operador":"GUSTAVO COLOMBO BOSSONI","segmento":"Vip Banking PF","total":188,"naoAderentes":8,"temaMaisErrou":"CD PF | SUSPEITA DE FRAUDE | TRANSAÇÃO - SEM INDICIOS","pct_inaderente":4.25531914893617},{"operador":"JEANN RODRIGUES DE OLIVEIRA","segmento":"Regulamentados","total":247,"naoAderentes":12,"temaMaisErrou":"ATENDIMENTO | TRANSFERÊNCIAS | DIRECIONADO PARA CONTA PF/MEI","pct_inaderente":4.8582995951417},{"operador":"GABRIEL CARMINATTI LIMA","segmento":"Conta Digital","total":73,"naoAderentes":4,"temaMaisErrou":"ATENDIMENTO | TRANSFERÊNCIAS | DIRECIONADO PARA SMALLS","pct_inaderente":5.47945205479452},{"operador":"RYAN LEMES COSTA","segmento":"Conta Digital","total":190,"naoAderentes":4,"temaMaisErrou":"CARTÃO | LIMITE DE CRÉDITO | INFORMAÇÕES GERAIS","pct_inaderente":2.1052631578947367},{"operador":"Pedro Henrique de Souza Borges","segmento":"Investimentos","total":134,"naoAderentes":7,"temaMaisErrou":"ATENDIMENTO | TRANSFERÊNCIAS | DIRECIONADO PARA INVESTIMENTOS","pct_inaderente":5.223880597014926},{"operador":"LUCAS CARDOSO DA SILVA ROCHA","segmento":"Conta Digital","total":182,"naoAderentes":18,"temaMaisErrou":"CARTÃO | LIMITE DE CRÉDITO | INFORMAÇÕES GERAIS","pct_inaderente":9.89010989010989},{"operador":"RENAN GABRIEL OLIVEIRA RODRIGUES","segmento":"Conta Digital","total":72,"naoAderentes":15,"temaMaisErrou":"CD PF | SAQUE | SAQUE DIGITAL","pct_inaderente":20.833333333333332},{"operador":"Hélio Soares Malta","segmento":"Meios de Pagamento","total":182,"naoAderentes":7,"temaMaisErrou":"CARTÃO | LIMITE DE CRÉDITO | INFORMAÇÕES GERAIS","pct_inaderente":3.8461538461538463},{"operador":"Patricia Gomes De Araujo De Almeida","segmento":"Investimentos","total":161,"naoAderentes":2,"temaMaisErrou":"INVESTIMENTOS | SUPORTE INVESTIDOR | TRANSFERÊNCIA DE CUSTÓDIA (SAÍDA)","pct_inaderente":1.2422360248447204},{"operador":"MARIA CLARA RODRIGUES DOS SANTOS","segmento":"Conta Digital","total":134,"naoAderentes":6,"temaMaisErrou":"ATENDIMENTO | TRANSFERÊNCIAS | DIRECIONADO PARA SMALLS","pct_inaderente":4.477611940298507},{"operador":"THAISSA DA SILVA FERRARI","segmento":"Investimentos","total":106,"naoAderentes":6,"temaMaisErrou":"ATENDIMENTO | TRANSFERÊNCIAS | DIRECIONADO PARA CARTÃO","pct_inaderente":5.660377358490566},{"operador":"LAERCIO DA CONCEICAO REIS","segmento":"Investimentos","total":132,"naoAderentes":0,"temaMaisErrou":"","pct_inaderente":0.0},{"operador":"Alan Glauber de Oliveira Crispim","segmento":"Conta Digital","total":258,"naoAderentes":8,"temaMaisErrou":"ATENDIMENTO | TRANSFERÊNCIAS | DIRECIONADO PARA CONTA PF/MEI","pct_inaderente":3.10077519379845},{"operador":"ELAINE CRISTINA SIQUEIRA","segmento":"Investimentos","total":184,"naoAderentes":3,"temaMaisErrou":"ATENDIMENTO | REGISTROS GERAIS | CONTATO DE TERCEIROS","pct_inaderente":1.6304347826086956},{"operador":"FABIO REGIS PAULOSSO JUNIOR","segmento":"Conta Digital","total":78,"naoAderentes":3,"temaMaisErrou":"ATENDIMENTO | REGISTROS GERAIS | EMPRESAS PARCEIRAS","pct_inaderente":3.8461538461538463},{"operador":"RAFAELA LUZ BORGES MARINHO","segmento":"Vip Banking PJ","total":47,"naoAderentes":2,"temaMaisErrou":"ATENDIMENTO | TRANSFERÊNCIAS | DIRECIONADO PARA VIP BANKING PJ","pct_inaderente":4.25531914893617},{"operador":"VICTORIA CAROLINE SENSAO FERREIRA","segmento":"Conta Digital","total":125,"naoAderentes":4,"temaMaisErrou":"ATENDIMENTO | TRANSFERÊNCIAS | DIRECIONADO PARA SMALLS","pct_inaderente":3.2},{"operador":"VICTOR ALEXANDRE DE SOUZA SANTOS","segmento":"Vip Banking PF","total":156,"naoAderentes":8,"temaMaisErrou":"CARTÃO | LIMITE DE CRÉDITO | ORIENTAÇÕES SOBRE SOLICITAÇÃO DE LIMITE","pct_inaderente":5.128205128205129},{"operador":"MARIA FERNANDA DOS SANTOS MATHEUS","segmento":"Vip Banking PJ","total":93,"naoAderentes":10,"temaMaisErrou":"ATENDIMENTO | TRANSFERÊNCIAS | DIRECIONADO PARA SMALLS","pct_inaderente":10.75268817204301},{"operador":"MARCO ANTONIO CARVALHO FILHO","segmento":"Regulamentados","total":109,"naoAderentes":1,"temaMaisErrou":"ATENDIMENTO | TRANSFERÊNCIAS | DIRECIONADO PARA SMALLS","pct_inaderente":0.9174311926605505},{"operador":"EMILY MARJORIE CRISTIANE RODRIGUES DA SILVA","segmento":"Vip Banking PF","total":121,"naoAderentes":2,"temaMaisErrou":"ATENDIMENTO | TRANSFERÊNCIAS | DIRECIONADO PARA VIP CREDIT","pct_inaderente":1.6528925619834711},{"operador":"MARCIA DE PAULA RODRIGUES RIBEIRO","segmento":"Conta Digital","total":37,"naoAderentes":1,"temaMaisErrou":"ATENDIMENTO | TRANSFERÊNCIAS | DIRECIONADO PARA EMPRÉSTIMOS","pct_inaderente":2.7027027027027026},{"operador":"Joice Kely da Silva Nunes","segmento":"Meios de Pagamento","total":139,"naoAderentes":10,"temaMaisErrou":"ATENDIMENTO | REGISTROS GERAIS | CONTATO DE TERCEIROS","pct_inaderente":7.194244604316546},{"operador":"Kethelen Eduarda Nunes Muniz","segmento":"Vip Banking PF","total":157,"naoAderentes":65,"temaMaisErrou":"ATENDIMENTO | REGISTROS GERAIS | CONTATO DE TERCEIROS","pct_inaderente":41.40127388535032},{"operador":"LETICIA BORG DOS SANTOS VILAR","segmento":"Conta Digital","total":211,"naoAderentes":14,"temaMaisErrou":"CD PF | GOLPE | PIX","pct_inaderente":6.6350710900473935},{"operador":"Tainá Gabriele Barbante","segmento":"Meios de Pagamento","total":124,"naoAderentes":7,"temaMaisErrou":"CARTÃO | LIMITE DE CRÉDITO | INFORMAÇÕES GERAIS","pct_inaderente":5.645161290322581},{"operador":"FRANCIELLE TAIS SOUZA REIS PRAXEDES","segmento":"Conta Digital","total":82,"naoAderentes":2,"temaMaisErrou":"ATENDIMENTO | TRANSFERÊNCIAS | DIRECIONADO PARA COBRANÇA","pct_inaderente":2.4390243902439024},{"operador":"LUIZ OTAVIO FARINHA DE ARAUJO","segmento":"Investimentos","total":57,"naoAderentes":2,"temaMaisErrou":"ATENDIMENTO | TRANSFERÊNCIAS | DIRECIONADO PARA COBRANÇA","pct_inaderente":3.508771929824561},{"operador":"STELA MARTA NERY DA SILVA","segmento":"Regulamentados","total":253,"naoAderentes":2,"temaMaisErrou":"ATENDIMENTO | TRANSFERÊNCIAS | DIRECIONADO PARA CRÉDITO TRABALHADOR","pct_inaderente":0.7905138339920948},{"operador":"VANESSA DE FREITAS SILLOS BARBOSA","segmento":"Meios de Pagamento","total":98,"naoAderentes":3,"temaMaisErrou":"ATENDIMENTO | TRANSFERÊNCIAS | DIRECIONADO PARA INVESTIMENTOS","pct_inaderente":3.061224489795918},{"operador":"Eloa Araujo Porfiro","segmento":"Conta Digital","total":203,"naoAderentes":8,"temaMaisErrou":"ATENDIMENTO | TRANSFERÊNCIAS | DIRECIONADO PARA SMALLS","pct_inaderente":3.9408866995073892},{"operador":"LAURA CRISTINA ALVES RODRIGUES","segmento":"Meios de Pagamento","total":247,"naoAderentes":22,"temaMaisErrou":"CARTÃO | LIMITE DE CRÉDITO | INFORMAÇÕES GERAIS","pct_inaderente":8.906882591093117},{"operador":"LUIS FELIPE STECA","segmento":"Regulamentados","total":213,"naoAderentes":5,"temaMaisErrou":"ATENDIMENTO | TRANSFERÊNCIAS | DIRECIONADO PARA CARTÃO","pct_inaderente":2.347417840375587},{"operador":"Lorena Aparecida Galiano","segmento":"Conta Digital","total":112,"naoAderentes":7,"temaMaisErrou":"ATENDIMENTO | TRANSFERÊNCIAS | DIRECIONADO PARA SMALLS","pct_inaderente":6.25},{"operador":"RAFAEL PEREIRA","segmento":"Conta Digital","total":47,"naoAderentes":5,"temaMaisErrou":"ATENDIMENTO | TRANSFERÊNCIAS | DIRECIONADO PARA SMALLS","pct_inaderente":10.638297872340425},{"operador":"MARIA EDUARDA SALUSTIO FERNANDES","segmento":"Vip Banking PF","total":306,"naoAderentes":7,"temaMaisErrou":"CARTÃO | LIMITE DE CRÉDITO | INFORMAÇÕES GERAIS","pct_inaderente":2.287581699346405},{"operador":"ANGELICA MAELI MORAIS GIROTO DE SOUZA","segmento":"Vip Banking PF","total":54,"naoAderentes":4,"temaMaisErrou":"ATENDIMENTO | TRANSFERÊNCIAS | DIRECIONADO PARA SMALLS","pct_inaderente":7.407407407407407},{"operador":"GUSTAVO BINCOLETTO MOLERO","segmento":"Vip Banking PJ","total":76,"naoAderentes":11,"temaMaisErrou":"ATENDIMENTO | REGISTROS GERAIS | CONTATO DE TERCEIROS","pct_inaderente":14.473684210526315},{"operador":"JEFFERSON GOMES DE OLIVEIRA","segmento":"Vip Banking PF","total":107,"naoAderentes":16,"temaMaisErrou":"ATENDIMENTO | REGISTROS GERAIS | CONTATO DE TERCEIROS","pct_inaderente":14.953271028037383},{"operador":"Vitor Hugo Frendenberg Perassoli","segmento":"Meios de Pagamento","total":91,"naoAderentes":4,"temaMaisErrou":"CARTÃO | LIMITE DE CRÉDITO | ORIENTAÇÕES SOBRE SOLICITAÇÃO DE LIMITE","pct_inaderente":4.395604395604396},{"operador":"LETICIA CAMPOS FERREIRA","segmento":"Meios de Pagamento","total":133,"naoAderentes":26,"temaMaisErrou":"CARTÃO | LIMITE DE CRÉDITO | INFORMAÇÕES GERAIS","pct_inaderente":19.548872180451127},{"operador":"LORENA LETICIA DE SOUZA BATISTA","segmento":"Regulamentados","total":248,"naoAderentes":5,"temaMaisErrou":"ATENDIMENTO | TRANSFERÊNCIAS | DIRECIONADO PARA SMALLS","pct_inaderente":2.0161290322580645},{"operador":"Joao Vitor Bergamaschi Nascimento dos Santos","segmento":"Conta Digital","total":147,"naoAderentes":48,"temaMaisErrou":"CD PF | SUSPEITA DE FRAUDE | TRANSAÇÃO - SEM INDICIOS","pct_inaderente":32.6530612244898},{"operador":"JOSIANE MOCHIUTI","segmento":"Meios de Pagamento","total":360,"naoAderentes":203,"temaMaisErrou":"CARTÃO | LIMITE DE CRÉDITO | INFORMAÇÕES GERAIS","pct_inaderente":56.388888888888886},{"operador":"GIOVANNA LOPES DE AZEVEDO","segmento":"Regulamentados","total":257,"naoAderentes":5,"temaMaisErrou":"ATENDIMENTO | TRANSFERÊNCIAS | DIRECIONADO PARA SMALLS","pct_inaderente":1.9455252918287937},{"operador":"ISABELA DO AMARAL SOUZA","segmento":"Meios de Pagamento","total":131,"naoAderentes":2,"temaMaisErrou":"ATENDIMENTO | TRANSFERÊNCIAS | DIRECIONADO PARA EMPRÉSTIMOS","pct_inaderente":1.5267175572519085},{"operador":"SHIRLEY QUITERIA DA SILVA","segmento":"Meios de Pagamento","total":63,"naoAderentes":2,"temaMaisErrou":"ATENDIMENTO | TRANSFERÊNCIAS | DIRECIONADO PARA COBRANÇA","pct_inaderente":3.1746031746031744},{"operador":"GEOVANI LUIS FABRICIO DE LIMA","segmento":"Conta Digital","total":180,"naoAderentes":25,"temaMaisErrou":"ATENDIMENTO | TRANSFERÊNCIAS | DIRECIONADO PARA CONTA PF/MEI","pct_inaderente":13.88888888888889},{"operador":"ALINE ISAURA CAVALHIERI","segmento":"Vip Banking PF","total":69,"naoAderentes":2,"temaMaisErrou":"CD PF | SUSPEITA DE FRAUDE | SEM TRANSAÇÃO  - CONTATO ATIVO E LINK SUSPEITO","pct_inaderente":2.898550724637681},{"operador":"Igor Alexsander Reis Alves","segmento":"Vip Banking PF","total":79,"naoAderentes":5,"temaMaisErrou":"ATENDIMENTO | REGISTROS GERAIS | CONTATO DE TERCEIROS","pct_inaderente":6.329113924050633},{"operador":"JOSE AUGUSTO CARNEIRO DOS SANTOS","segmento":"Vip Banking PJ","total":25,"naoAderentes":0,"temaMaisErrou":"","pct_inaderente":0.0},{"operador":"JOSE PAULINO BARNABE","segmento":"Vip Banking PF","total":19,"naoAderentes":1,"temaMaisErrou":"CARTÃO | LIMITE DE CRÉDITO | INFORMAÇÕES GERAIS","pct_inaderente":5.2631578947368425},{"operador":"SERGIO LUIZ DA SILVA","segmento":"Vip Banking PF","total":55,"naoAderentes":2,"temaMaisErrou":"ATENDIMENTO | TRANSFERÊNCIAS | DIRECIONADO PARA EMPRÉSTIMOS","pct_inaderente":3.6363636363636362},{"operador":"PEDRO RENATO GARCIA MARTINEZ MARTINS","segmento":"Conta Digital","total":192,"naoAderentes":15,"temaMaisErrou":"CARTÃO | LIMITE DE CRÉDITO | INFORMAÇÕES GERAIS","pct_inaderente":7.8125},{"operador":"Priscila Marcelle da Cruz Padilha","segmento":"Conta Digital","total":130,"naoAderentes":3,"temaMaisErrou":"ATENDIMENTO | TRANSFERÊNCIAS | DIRECIONADO PARA COBRANÇA","pct_inaderente":2.3076923076923075},{"operador":"LUCAS DONIZETE CALCAVARA EMILIANO","segmento":"Meios de Pagamento","total":185,"naoAderentes":1,"temaMaisErrou":"CD PF | GOLPE | PIX","pct_inaderente":0.5405405405405406},{"operador":"FABIO NOVELLI FILHO","segmento":"Investimentos","total":132,"naoAderentes":3,"temaMaisErrou":"ATENDIMENTO | TRANSFERÊNCIAS | DIRECIONADO PARA VIP BANKING BUSINESS","pct_inaderente":2.272727272727273},{"operador":"DIENE DE SOUZA VELOSO","segmento":"Conta Digital","total":123,"naoAderentes":0,"temaMaisErrou":"","pct_inaderente":0.0},{"operador":"MAICON DANIEL DA SILVA BEGNAMI","segmento":"Vip Banking PF","total":29,"naoAderentes":2,"temaMaisErrou":"ATENDIMENTO | TRANSFERÊNCIAS | DIRECIONADO PARA SMALLS","pct_inaderente":6.896551724137931},{"operador":"LEANDRO APARECIDO RODRIGUES","segmento":"Conta Digital","total":147,"naoAderentes":2,"temaMaisErrou":"ATENDIMENTO | TRANSFERÊNCIAS | DIRECIONADO PARA SMALLS","pct_inaderente":1.3605442176870748},{"operador":"ANA CAROLINA SARTORIO HENCKES","segmento":"Regulamentados","total":85,"naoAderentes":0,"temaMaisErrou":"","pct_inaderente":0.0},{"operador":"HEBERT ROCHA DO NASCIMENTO","segmento":"Regulamentados","total":312,"naoAderentes":14,"temaMaisErrou":"ATENDIMENTO | TRANSFERÊNCIAS | DIRECIONADO PARA COBRANÇA","pct_inaderente":4.487179487179487},{"operador":"BARBARA LUISA DE OLIVEIRA VIEIRA","segmento":"Conta Digital","total":79,"naoAderentes":7,"temaMaisErrou":"ATENDIMENTO | REGISTROS GERAIS | CONTATO DE TERCEIROS","pct_inaderente":8.860759493670885},{"operador":"ANGELA MARIA DE CARVALHO GOMES","segmento":"Investimentos","total":153,"naoAderentes":3,"temaMaisErrou":"ATENDIMENTO | TRANSFERÊNCIAS | DIRECIONADO PARA CARTÃO","pct_inaderente":1.9607843137254901},{"operador":"GABRIEL DE OLIVEIRA GUIMARAES ARLE","segmento":"Meios de Pagamento","total":147,"naoAderentes":10,"temaMaisErrou":"CD PF | SUSPEITA DE FRAUDE | DISCORDA DO PARECER FINAL","pct_inaderente":6.802721088435374},{"operador":"ALEPH ABNER DO AMARAL BRAGA","segmento":"Investimentos","total":194,"naoAderentes":7,"temaMaisErrou":"ATENDIMENTO | TRANSFERÊNCIAS | DIRECIONADO PARA SMALLS","pct_inaderente":3.6082474226804124},{"operador":"THAIS CRISTINA DE JESUS","segmento":"Conta Digital","total":131,"naoAderentes":4,"temaMaisErrou":"ATENDIMENTO | TRANSFERÊNCIAS | DIRECIONADO PARA VIP BANKING PJ","pct_inaderente":3.053435114503817},{"operador":"UILSON JOSE PINHO","segmento":"Investimentos","total":168,"naoAderentes":14,"temaMaisErrou":"INVESTIMENTOS | SUPORTE INVESTIDOR | TRANSFERÊNCIA DE CUSTÓDIA (SAÍDA) CONTA BLOQUEADA/ENCERRADA","pct_inaderente":8.333333333333334},{"operador":"MATHEUS DAL BEM BUSETTO","segmento":"Conta Digital","total":157,"naoAderentes":13,"temaMaisErrou":"CD PF | SUSPEITA DE FRAUDE | TRANSAÇÃO - SEM INDICIOS","pct_inaderente":8.280254777070065},{"operador":"VITORIA CAMILE PEDROSO DA SILVA","segmento":"Vip Banking PF","total":76,"naoAderentes":3,"temaMaisErrou":"CD PF | GOLPE | PIX","pct_inaderente":3.9473684210526314},{"operador":"LEONARDO MULLER ANUNCIATO","segmento":"Vip Banking PJ","total":51,"naoAderentes":3,"temaMaisErrou":"CARTÃO | LIMITE DE CRÉDITO | INFORMAÇÕES GERAIS","pct_inaderente":5.882352941176471},{"operador":"ISAC REIS DE ALMEIDA SILVA","segmento":"Investimentos","total":116,"naoAderentes":2,"temaMaisErrou":"CARTÃO | INFORMAÇÕES SOBRE COBRANÇA | SERASA INDEVIDO","pct_inaderente":1.7241379310344827},{"operador":"MELISSA HELEN STELLA ALVES","segmento":"Conta Digital","total":89,"naoAderentes":3,"temaMaisErrou":"ATENDIMENTO | RECLAMAÇÃO | RECLAMAÇÃO DE ATENDIMENTO PRESTADO","pct_inaderente":3.3707865168539324},{"operador":"RYAN ALMEIDA LEITE PEREIRA","segmento":"Regulamentados","total":234,"naoAderentes":28,"temaMaisErrou":"ATENDIMENTO | REGISTROS GERAIS | CONTATO DE TERCEIROS","pct_inaderente":11.965811965811966},{"operador":"DOUGLAS MARTINS PEDROSO","segmento":"Meios de Pagamento","total":200,"naoAderentes":15,"temaMaisErrou":"CARTÃO | LIMITE DE CRÉDITO | ORIENTAÇÕES SOBRE SOLICITAÇÃO DE LIMITE","pct_inaderente":7.5},{"operador":"ELIANA SANTOS ALVES","segmento":"Conta Digital","total":115,"naoAderentes":4,"temaMaisErrou":"CD PF | SUSPEITA DE FRAUDE | TRANSAÇÃO - SEM INDICIOS","pct_inaderente":3.4782608695652173},{"operador":"Suzana Gomes da Silva","segmento":"Vip Banking PF","total":83,"naoAderentes":17,"temaMaisErrou":"ATENDIMENTO | REGISTROS GERAIS | CONTATO DE TERCEIROS","pct_inaderente":20.481927710843372},{"operador":"LAUANA FERNANDES TEIXEIRA","segmento":"Conta Digital","total":37,"naoAderentes":1,"temaMaisErrou":"ATENDIMENTO | TRANSFERÊNCIAS | DIRECIONADO PARA EMPRÉSTIMOS","pct_inaderente":2.7027027027027026},{"operador":"ARITANIA SILVA PINDOBEIRA","segmento":"Conta Digital","total":164,"naoAderentes":6,"temaMaisErrou":"CD PF | GOLPE | PIX","pct_inaderente":3.658536585365854},{"operador":"ELIAS MIGUEL LIMA DA SILVA","segmento":"Conta Digital","total":66,"naoAderentes":2,"temaMaisErrou":"ATENDIMENTO | TRANSFERÊNCIAS | DIRECIONADO PARA COBRANÇA","pct_inaderente":3.0303030303030303},{"operador":"Sandra Carla Palma Passos","segmento":"Vip Banking PF","total":144,"naoAderentes":4,"temaMaisErrou":"CARTÃO | ENVIO DO CARTÃO | CARTÃO ENTREGUE NÃO RECEBIDO","pct_inaderente":2.7777777777777777},{"operador":"RODRIGO DE LEMOS ALVES","segmento":"Vip Banking PJ","total":148,"naoAderentes":7,"temaMaisErrou":"ATENDIMENTO | REGISTROS GERAIS | CONTATO DE TERCEIROS","pct_inaderente":4.72972972972973},{"operador":"DASAIHANA EIDE IDELCI DE OLIVEIRA COSTA","segmento":"Conta Digital","total":37,"naoAderentes":0,"temaMaisErrou":"","pct_inaderente":0.0},{"operador":"Reginaldo Jose Gomes Junior","segmento":"Investimentos","total":122,"naoAderentes":3,"temaMaisErrou":"ATENDIMENTO | TRANSFERÊNCIAS | DIRECIONADO PARA EMPRÉSTIMOS","pct_inaderente":2.459016393442623},{"operador":"RAFAEL MARQUES SANTANA","segmento":"Investimentos","total":98,"naoAderentes":1,"temaMaisErrou":"INVESTIMENTOS | SUPORTE INVESTIDOR | TRANSFERÊNCIA DE CUSTÓDIA (SAÍDA)","pct_inaderente":1.0204081632653061},{"operador":"RAQUEL ALVES DE MORAIS","segmento":"Meios de Pagamento","total":96,"naoAderentes":12,"temaMaisErrou":"ATENDIMENTO | TRANSFERÊNCIAS | DIRECIONADO PARA INVESTIMENTOS","pct_inaderente":12.5},{"operador":"Maria Julia Alcantara da Silva","segmento":"Meios de Pagamento","total":202,"naoAderentes":57,"temaMaisErrou":"ATENDIMENTO | REGISTROS GERAIS | CONTATO DE TERCEIROS","pct_inaderente":28.217821782178216},{"operador":"Raquel Cristina Cruz Pereira","segmento":"Regulamentados","total":273,"naoAderentes":25,"temaMaisErrou":"ATENDIMENTO | TRANSFERÊNCIAS | DIRECIONADO PARA EMPRÉSTIMOS","pct_inaderente":9.157509157509157},{"operador":"PAULO HENRIQUE SABATINI DE SOUZA","segmento":"Meios de Pagamento","total":93,"naoAderentes":12,"temaMaisErrou":"CARTÃO | LIMITE DE CRÉDITO | INFORMAÇÕES GERAIS","pct_inaderente":12.903225806451612},{"operador":"MAICON LUIZ DA COSTA","segmento":"Vip Banking PJ","total":109,"naoAderentes":7,"temaMaisErrou":"ATENDIMENTO | REGISTROS GERAIS | CONTATO DE TERCEIROS","pct_inaderente":6.422018348623853},{"operador":"Ana Paula Barbosa dos Santos","segmento":"Vip Banking PF","total":123,"naoAderentes":26,"temaMaisErrou":"ATENDIMENTO | REGISTROS GERAIS | CONTATO DE TERCEIROS","pct_inaderente":21.13821138211382},{"operador":"KAUA MENEZES SANTOS DE LIMA","segmento":"Investimentos","total":132,"naoAderentes":6,"temaMaisErrou":"ATENDIMENTO | REGISTROS GERAIS | CONTATO DE TERCEIROS","pct_inaderente":4.545454545454546},{"operador":"LAURA KOTZENT VIEIRA","segmento":"Meios de Pagamento","total":25,"naoAderentes":0,"temaMaisErrou":"","pct_inaderente":0.0},{"operador":"Victoria Heloyse Marques Bernardoni","segmento":"Meios de Pagamento","total":45,"naoAderentes":2,"temaMaisErrou":"ATENDIMENTO | TRANSFERÊNCIAS | DIRECIONADO PARA SMALLS","pct_inaderente":4.444444444444445},{"operador":"EDUARDA NOCE OSMEDIO","segmento":"Meios de Pagamento","total":254,"naoAderentes":76,"temaMaisErrou":"CARTÃO | LIMITE DE CRÉDITO | ORIENTAÇÕES SOBRE SOLICITAÇÃO DE LIMITE","pct_inaderente":29.921259842519685},{"operador":"ALUADO MOTTA BATISTA","segmento":"Meios de Pagamento","total":161,"naoAderentes":3,"temaMaisErrou":"CARTÃO | LIMITE DE CRÉDITO | INFORMAÇÕES GERAIS","pct_inaderente":1.8633540372670807},{"operador":"WELDERSON LUIS DA SILVA PEREIRA","segmento":"Meios de Pagamento","total":50,"naoAderentes":1,"temaMaisErrou":"ATENDIMENTO | TRANSFERÊNCIAS | DIRECIONADO PARA SMALLS","pct_inaderente":2.0},{"operador":"GABRIEL LUIS DE ALMEIDA DA SILVA","segmento":"Conta Digital","total":117,"naoAderentes":8,"temaMaisErrou":"ATENDIMENTO | TRANSFERÊNCIAS | DIRECIONADO PARA SMALLS","pct_inaderente":6.837606837606837},{"operador":"DANIELE VITORIA DA SILVA SANTOS","segmento":"Vip Banking PF","total":195,"naoAderentes":13,"temaMaisErrou":"CARTÃO | LIMITE DE CRÉDITO | CLIENTE SOLICITA AUMENTO DO LIMITE","pct_inaderente":6.666666666666667},{"operador":"Mara Franciele dos Santos","segmento":"Vip Banking PF","total":138,"naoAderentes":26,"temaMaisErrou":"CARTÃO | LIMITE DE CRÉDITO | ORIENTAÇÕES SOBRE SOLICITAÇÃO DE LIMITE","pct_inaderente":18.840579710144926},{"operador":"LUDMILLA GRANUCCI MENDONCA","segmento":"Vip Banking PF","total":91,"naoAderentes":2,"temaMaisErrou":"CD PF | ENCERRAMENTO DE CONTA | ENCERRAMENTO POR ÓBITO","pct_inaderente":2.197802197802198},{"operador":"GABRIELA FIORUCCI STIEVANO MESSIAS","segmento":"Investimentos","total":132,"naoAderentes":4,"temaMaisErrou":"ATENDIMENTO | REGISTROS GERAIS | CONTATO DE TERCEIROS","pct_inaderente":3.0303030303030303},{"operador":"TIAGO BRUMATI","segmento":"Conta Digital","total":99,"naoAderentes":2,"temaMaisErrou":"ATENDIMENTO | TRANSFERÊNCIAS | DIRECIONADO PARA SMALLS","pct_inaderente":2.0202020202020203},{"operador":"CRISTINA SUMIE SCHIMOHIGASHI","segmento":"Investimentos","total":70,"naoAderentes":1,"temaMaisErrou":"ATENDIMENTO | TRANSFERÊNCIAS | DIRECIONADO PARA VIP BANKING BUSINESS","pct_inaderente":1.4285714285714286},{"operador":"ANGELA BATAGLION","segmento":"Conta Digital","total":139,"naoAderentes":0,"temaMaisErrou":"","pct_inaderente":0.0},{"operador":"ELIZANGELA DIAS DA SILVA FIALHO","segmento":"Meios de Pagamento","total":102,"naoAderentes":3,"temaMaisErrou":"ATENDIMENTO | TRANSFERÊNCIAS | DIRECIONADO PARA SMALLS","pct_inaderente":2.9411764705882355},{"operador":"GABRIELA CARDOSO ORLANDO","segmento":"Vip Banking PJ","total":93,"naoAderentes":30,"temaMaisErrou":"ATENDIMENTO | REGISTROS GERAIS | SOLICITAÇÃO DE PROTOCOLO DE ATENDIMENTO","pct_inaderente":32.25806451612903},{"operador":"EDUARDO GRUPIONI ROSSI","segmento":"Conta Digital","total":44,"naoAderentes":1,"temaMaisErrou":"CD PF | BLOQUEIOS | CONTA BLOQUEADA TEMPORARIAMENTE","pct_inaderente":2.272727272727273},{"operador":"VANESSA APARECIDA DOS SANTOS","segmento":"Conta Digital","total":98,"naoAderentes":4,"temaMaisErrou":"ATENDIMENTO | REGISTROS GERAIS | CONTATO DE TERCEIROS","pct_inaderente":4.081632653061225},{"operador":"FLORIVAL APARECIDO GALVAO","segmento":"Vip Banking PF","total":51,"naoAderentes":3,"temaMaisErrou":"CARTÃO | LIMITE DE CRÉDITO | INFORMAÇÕES GERAIS","pct_inaderente":5.882352941176471},{"operador":"GABRIEL HENRIQUE SENRA DE SOUZA","segmento":"Meios de Pagamento","total":40,"naoAderentes":1,"temaMaisErrou":"CD PF | SUSPEITA DE FRAUDE | BLOQUEIO TEMPORÁRIO","pct_inaderente":2.5},{"operador":"FABIANA LUIZA FONSECA","segmento":"Conta Digital","total":81,"naoAderentes":1,"temaMaisErrou":"ATENDIMENTO | TRANSFERÊNCIAS | DIRECIONADO PARA COBRANÇA","pct_inaderente":1.2345679012345678},{"operador":"LARISSA DE SA BARBOSA","segmento":"Investimentos","total":119,"naoAderentes":2,"temaMaisErrou":"ATENDIMENTO | TRANSFERÊNCIAS | DIRECIONADO PARA SMALLS","pct_inaderente":1.680672268907563},{"operador":"MIKAELLA RIBEIRO DA SILVA","segmento":"Vip Banking PF","total":88,"naoAderentes":3,"temaMaisErrou":"ATENDIMENTO | REGISTROS GERAIS | CONTATO DE TERCEIROS","pct_inaderente":3.409090909090909},{"operador":"Gabriele Silva Bertolini","segmento":"Conta Digital","total":131,"naoAderentes":5,"temaMaisErrou":"ATENDIMENTO | TRANSFERÊNCIAS | DIRECIONADO PARA CRÉDITO TRABALHADOR","pct_inaderente":3.816793893129771},{"operador":"NILL ROGER PELACHIN","segmento":"Vip Banking PF","total":58,"naoAderentes":12,"temaMaisErrou":"CARTÃO | LIMITE DE CRÉDITO | ORIENTAÇÕES SOBRE SOLICITAÇÃO DE LIMITE","pct_inaderente":20.689655172413794},{"operador":"CAMILLY VICTORIA DA CONCEICAO FIGUEIREDO","segmento":"Investimentos","total":90,"naoAderentes":1,"temaMaisErrou":"ATENDIMENTO | REGISTROS GERAIS | CONTATO DE TERCEIROS","pct_inaderente":1.1111111111111112},{"operador":"MARCIO RICARDO ALVES FORTE","segmento":"Vip Banking PF","total":91,"naoAderentes":0,"temaMaisErrou":"","pct_inaderente":0.0},{"operador":"Lara Julia Reblin Fraga","segmento":"Investimentos","total":79,"naoAderentes":3,"temaMaisErrou":"ATENDIMENTO | TRANSFERÊNCIAS | DIRECIONADO PARA SMALLS","pct_inaderente":3.7974683544303796},{"operador":"VITORIA GABRIELY SILVA SANTOS","segmento":"Vip Banking PF","total":138,"naoAderentes":3,"temaMaisErrou":"CD PF | SUSPEITA DE FRAUDE | TRANSAÇÃO - SEM INDICIOS","pct_inaderente":2.1739130434782608},{"operador":"Amanda da Conceicao Aniceto Aires","segmento":"Vip Banking PJ","total":68,"naoAderentes":2,"temaMaisErrou":"ATENDIMENTO | REGISTROS GERAIS | CONTATO DE TERCEIROS","pct_inaderente":2.9411764705882355},{"operador":"CAUA CRISTIAN E SILVA","segmento":"Regulamentados","total":278,"naoAderentes":43,"temaMaisErrou":"ATENDIMENTO | TRANSFERÊNCIAS | DIRECIONADO PARA EMPRÉSTIMOS","pct_inaderente":15.467625899280575},{"operador":"JOICE DOS SANTOS PONTES","segmento":"Conta Digital","total":102,"naoAderentes":1,"temaMaisErrou":"ATENDIMENTO | TRANSFERÊNCIAS | DIRECIONADO PARA INVESTIMENTOS","pct_inaderente":0.9803921568627451},{"operador":"LUCAS VADENAL FERREIRA DOS ANJOS","segmento":"Conta Digital","total":105,"naoAderentes":9,"temaMaisErrou":"ATENDIMENTO | TRANSFERÊNCIAS | DIRECIONADO PARA SMALLS","pct_inaderente":8.571428571428571},{"operador":"SANDRA SAYURI KATANIWA YAMAMOTO","segmento":"Vip Banking PF","total":86,"naoAderentes":10,"temaMaisErrou":"CD PF | ACESSO A CONTA | INCONFORMIDADE COM O SISTEMA OPERACIONAL","pct_inaderente":11.627906976744185},{"operador":"Celina Nunes da Silva","segmento":"Conta Digital","total":128,"naoAderentes":7,"temaMaisErrou":"CD PF | STATUS DE ABERTURA | NEGADA","pct_inaderente":5.46875},{"operador":"THIAGO YOSHIO NAKAMURA","segmento":"Conta Digital","total":133,"naoAderentes":2,"temaMaisErrou":"CD PF | SUSPEITA DE FRAUDE | SEM TRANSAÇÃO  - CONTATO ATIVO E LINK SUSPEITO","pct_inaderente":1.5037593984962405},{"operador":"BEATRIZ VAZ DOS REIS","segmento":"Conta Digital","total":151,"naoAderentes":4,"temaMaisErrou":"ATENDIMENTO | TRANSFERÊNCIAS | DIRECIONADO PARA COBRANÇA","pct_inaderente":2.6490066225165565},{"operador":"ANA BEATRIZ DOS SANTOS CARDOZO","segmento":"Regulamentados","total":72,"naoAderentes":3,"temaMaisErrou":"ATENDIMENTO | TRANSFERÊNCIAS | DIRECIONADO PARA CONTA PJ","pct_inaderente":4.166666666666667},{"operador":"Itana Claudia Pereira Lellis","segmento":"Meios de Pagamento","total":152,"naoAderentes":7,"temaMaisErrou":"CD PF | SUSPEITA DE FRAUDE | TRANSAÇÃO - SEM INDICIOS","pct_inaderente":4.605263157894737},{"operador":"OTAVIO HENRIQUE FERNANDO RODRIGUES FREITAS","segmento":"Vip Banking PF","total":121,"naoAderentes":13,"temaMaisErrou":"ATENDIMENTO | TRANSFERÊNCIAS | DIRECIONADO PARA SMALLS","pct_inaderente":10.743801652892563},{"operador":"GUSTAVO MATSUITI MACHADO KATO","segmento":"Vip Banking PF","total":89,"naoAderentes":2,"temaMaisErrou":"ATENDIMENTO | TRANSFERÊNCIAS | DIRECIONADO PARA COBRANÇA","pct_inaderente":2.247191011235955},{"operador":"CELIA MORALES ROSA","segmento":"Conta Digital","total":152,"naoAderentes":16,"temaMaisErrou":"ATENDIMENTO | TRANSFERÊNCIAS | DIRECIONADO PARA SMALLS","pct_inaderente":10.526315789473685},{"operador":"JEIEL VITORIO CARVALHO PAULINO","segmento":"Conta Digital","total":50,"naoAderentes":0,"temaMaisErrou":"","pct_inaderente":0.0},{"operador":"MARIANNE DA SILVA COSTA","segmento":"Investimentos","total":96,"naoAderentes":1,"temaMaisErrou":"CD PF | SUSPEITA DE FRAUDE | TRANSAÇÃO - ACESSO LINK SUSPEITO/ VIRUS","pct_inaderente":1.0416666666666667},{"operador":"Andreza dos Santos Fernandes","segmento":"Investimentos","total":95,"naoAderentes":3,"temaMaisErrou":"ATENDIMENTO | TRANSFERÊNCIAS | DIRECIONADO PARA INVESTIMENTOS","pct_inaderente":3.1578947368421053},{"operador":"RENATA BEATRIZ DOS SANTOS","segmento":"Regulamentados","total":213,"naoAderentes":35,"temaMaisErrou":"ATENDIMENTO | REGISTROS GERAIS | CONTATO DE TERCEIROS","pct_inaderente":16.431924882629108},{"operador":"MARCOS LEVI OLIVEIRA DA SILVA BROTAS","segmento":"Vip Banking PJ","total":119,"naoAderentes":5,"temaMaisErrou":"CD PJ | SUSPEITA DE FRAUDE | SEM TRANSAÇÃO  - CONTATO ATIVO E LINK SUSPEITO","pct_inaderente":4.201680672268908},{"operador":"JOSE BRUNNO EVANGELISTA DA SILVA","segmento":"Conta Digital","total":134,"naoAderentes":6,"temaMaisErrou":"ATENDIMENTO | TRANSFERÊNCIAS | DIRECIONADO PARA SMALLS","pct_inaderente":4.477611940298507},{"operador":"DANIELA APARECIDA FERREIRA","segmento":"Meios de Pagamento","total":91,"naoAderentes":1,"temaMaisErrou":"CD PF | SUSPEITA DE FRAUDE | TRANSAÇÃO - SEM INDICIOS","pct_inaderente":1.098901098901099},{"operador":"Roberta Fernanda Galina","segmento":"Vip Banking PJ","total":48,"naoAderentes":2,"temaMaisErrou":"ATENDIMENTO | REGISTROS GERAIS | CONTATO DE TERCEIROS","pct_inaderente":4.166666666666667},{"operador":"ANA CAROLINA RUFINO","segmento":"Regulamentados","total":312,"naoAderentes":8,"temaMaisErrou":"ATENDIMENTO | TRANSFERÊNCIAS | DIRECIONADO PARA INVESTIMENTOS","pct_inaderente":2.5641025641025643},{"operador":"VAGNER ETELVINO LEAO","segmento":"Vip Banking PF","total":108,"naoAderentes":10,"temaMaisErrou":"ATENDIMENTO | REGISTROS GERAIS | CONTATO DE TERCEIROS","pct_inaderente":9.25925925925926},{"operador":"RAFAELLA HELOISA DOS SANTOS","segmento":"Meios de Pagamento","total":49,"naoAderentes":0,"temaMaisErrou":"","pct_inaderente":0.0},{"operador":"MARILIA TAVARES DA SILVA","segmento":"Vip Banking PF","total":87,"naoAderentes":1,"temaMaisErrou":"ATENDIMENTO | TRANSFERÊNCIAS | DIRECIONADO PARA SMALLS","pct_inaderente":1.1494252873563218},{"operador":"ANANDA PEREIRA DA SILVA","segmento":"Vip Banking PF","total":90,"naoAderentes":23,"temaMaisErrou":"CARTÃO | LIMITE DE CRÉDITO | CLIENTE SOLICITA AUMENTO DO LIMITE","pct_inaderente":25.555555555555557},{"operador":"JOAO PEDRO DE CARVALHO ANUNCIACAO","segmento":"Meios de Pagamento","total":123,"naoAderentes":4,"temaMaisErrou":"CARTÃO | LIMITE DE CRÉDITO | INFORMAÇÕES GERAIS","pct_inaderente":3.252032520325203},{"operador":"ARTHUR GARCIA ROMERO PEREIRA","segmento":"Vip Banking PJ","total":53,"naoAderentes":1,"temaMaisErrou":"ATENDIMENTO | TRANSFERÊNCIAS | DIRECIONADO PARA INTERPAG","pct_inaderente":1.8867924528301887},{"operador":"Rosemary Pereira Vieira","segmento":"Meios de Pagamento","total":79,"naoAderentes":5,"temaMaisErrou":"CARTÃO | LIMITE DE CRÉDITO | INFORMAÇÕES GERAIS","pct_inaderente":6.329113924050633},{"operador":"IGOR FELLIPE CUNHA","segmento":"Conta Digital","total":39,"naoAderentes":3,"temaMaisErrou":"CARTÃO | LIMITE DE CRÉDITO | CLIENTE SOLICITA AUMENTO DO LIMITE","pct_inaderente":7.6923076923076925},{"operador":"SHAWAN ALEXANDRE BASTOS SARAIVA","segmento":"Conta Digital","total":67,"naoAderentes":14,"temaMaisErrou":"CD PF | EXTRATO BANCÁRIO | CLIENTE SOLICITA EMISSÃO (TARJA FRAUDE)","pct_inaderente":20.895522388059703},{"operador":"VALDETE BENEDITO ROCHA","segmento":"Regulamentados","total":193,"naoAderentes":15,"temaMaisErrou":"ATENDIMENTO | REGISTROS GERAIS | CONTATO DE TERCEIROS","pct_inaderente":7.772020725388601},{"operador":"DANIEL FERREIRA DA FONSECA JUNIOR","segmento":"Vip Banking PF","total":80,"naoAderentes":2,"temaMaisErrou":"CD PF | SUSPEITA DE FRAUDE | SEM TRANSAÇÃO  - CONTATO ATIVO E LINK SUSPEITO","pct_inaderente":2.5},{"operador":"VICTOR HUGO DE FREITAS","segmento":"Investimentos","total":23,"naoAderentes":1,"temaMaisErrou":"ATENDIMENTO | TRANSFERÊNCIAS | DIRECIONADO PARA CONTA PF/MEI","pct_inaderente":4.3478260869565215},{"operador":"Diogo Freitas Neves Pais","segmento":"Investimentos","total":38,"naoAderentes":0,"temaMaisErrou":"","pct_inaderente":0.0},{"operador":"PATRICIA MONTEIRO MARTINS","segmento":"Vip Banking PF","total":58,"naoAderentes":1,"temaMaisErrou":"ATENDIMENTO | REGISTROS GERAIS | CONTATO DE TERCEIROS","pct_inaderente":1.7241379310344827},{"operador":"KARINE GONCALVES RIBEIRO DE OLIVEIRA","segmento":"Conta Digital","total":83,"naoAderentes":3,"temaMaisErrou":"ATENDIMENTO | TRANSFERÊNCIAS | DIRECIONADO PARA SMALLS","pct_inaderente":3.6144578313253013},{"operador":"Isadora de Lima Rocha","segmento":"Regulamentados","total":203,"naoAderentes":32,"temaMaisErrou":"ATENDIMENTO | REGISTROS GERAIS | CONTATO DE TERCEIROS","pct_inaderente":15.763546798029557},{"operador":"ISABEL CRISTINA DE SOUZA DA SILVA","segmento":"Vip Banking PF","total":67,"naoAderentes":2,"temaMaisErrou":"ATENDIMENTO | REGISTROS GERAIS | CONTATO DE TERCEIROS","pct_inaderente":2.985074626865672},{"operador":"MARCELO GABRIEL TELES FREIRE","segmento":"Vip Banking PJ","total":105,"naoAderentes":3,"temaMaisErrou":"ATENDIMENTO | TRANSFERÊNCIAS | DIRECIONADO PARA INTERPAG","pct_inaderente":2.857142857142857},{"operador":"Jonas Lima Roepke","segmento":"Vip Banking PF","total":63,"naoAderentes":5,"temaMaisErrou":"ATENDIMENTO | TRANSFERÊNCIAS | DIRECIONADO PARA SMALLS","pct_inaderente":7.936507936507937},{"operador":"LARISSA PEREZ DE LIMA","segmento":"Vip Banking PF","total":88,"naoAderentes":0,"temaMaisErrou":"","pct_inaderente":0.0},{"operador":"Isabella Silva Gabriel","segmento":"Vip Banking PF","total":31,"naoAderentes":1,"temaMaisErrou":"ATENDIMENTO | TRANSFERÊNCIAS | DIRECIONADO PARA CONTA PF/MEI","pct_inaderente":3.225806451612903},{"operador":"VANIA APARECIDA AZEVEDO","segmento":"Meios de Pagamento","total":80,"naoAderentes":2,"temaMaisErrou":"ATENDIMENTO | TRANSFERÊNCIAS | DIRECIONADO PARA SMALLS","pct_inaderente":2.5},{"operador":"LEONARDO AUGUSTO DA SILVA XAVIER","segmento":"Vip Banking PF","total":55,"naoAderentes":1,"temaMaisErrou":"ATENDIMENTO | TRANSFERÊNCIAS | DIRECIONADO PARA GLOBAL ACCOUNT","pct_inaderente":1.8181818181818181},{"operador":"EVELIN GOMES FERREIRA","segmento":"Conta Digital","total":95,"naoAderentes":1,"temaMaisErrou":"CD PF | SUSPEITA DE FRAUDE | TRANSAÇÃO - SEM INDICIOS","pct_inaderente":1.0526315789473684},{"operador":"THAIS NATALIA DA SILVA","segmento":"Meios de Pagamento","total":62,"naoAderentes":0,"temaMaisErrou":"","pct_inaderente":0.0},{"operador":"TATIANE DE JESUS EUGENIO","segmento":"Meios de Pagamento","total":138,"naoAderentes":5,"temaMaisErrou":"ATENDIMENTO | REGISTROS GERAIS | CONTATO DE TERCEIROS","pct_inaderente":3.6231884057971016},{"operador":"FRANCISCO PRIETO RODRIGUES JUNIOR","segmento":"Meios de Pagamento","total":39,"naoAderentes":2,"temaMaisErrou":"ATENDIMENTO | TRANSFERÊNCIAS | DIRECIONADO PARA CARTÃO","pct_inaderente":5.128205128205129},{"operador":"MARCIA ALVES VALLADEZ","segmento":"Regulamentados","total":91,"naoAderentes":3,"temaMaisErrou":"INTER CEL | CASHBACK | NÃO RECEBIMENTO DE CASHBACK","pct_inaderente":3.2967032967032965},{"operador":"PEDRO PAULO OLIVEIRA COSTA","segmento":"Vip Banking PJ","total":126,"naoAderentes":5,"temaMaisErrou":"ATENDIMENTO | REGISTROS GERAIS | CONTATO DE TERCEIROS","pct_inaderente":3.9682539682539684},{"operador":"BEATRIZ RIBEIRO DOS SANTOS","segmento":"Vip Banking PF","total":78,"naoAderentes":2,"temaMaisErrou":"ATENDIMENTO | TRANSFERÊNCIAS | DIRECIONADO PARA VIP BANKING PJ","pct_inaderente":2.5641025641025643},{"operador":"DAVID APARECIDO DA COSTA OLIVEIRA","segmento":"Vip Banking PJ","total":36,"naoAderentes":4,"temaMaisErrou":"ATENDIMENTO | REGISTROS GERAIS | CONTATO DE TERCEIROS","pct_inaderente":11.11111111111111},{"operador":"FABIOLA DE OLIVEIRA CAPUTI","segmento":"Investimentos","total":103,"naoAderentes":4,"temaMaisErrou":"ATENDIMENTO | REGISTROS GERAIS | CONTATO DE TERCEIROS","pct_inaderente":3.883495145631068},{"operador":"Laís Caroline de Siqueira Pena","segmento":"Vip Banking PJ","total":78,"naoAderentes":3,"temaMaisErrou":"ATENDIMENTO | REGISTROS GERAIS | CONTATO DE TERCEIROS","pct_inaderente":3.8461538461538463},{"operador":"MATHEUS LUCIANO DE ANDRADE","segmento":"Meios de Pagamento","total":94,"naoAderentes":1,"temaMaisErrou":"ATENDIMENTO | TRANSFERÊNCIAS | DIRECIONADO PARA COBRANÇA","pct_inaderente":1.0638297872340425},{"operador":"LUIZ HENRIQUE TOMAZINI TEIXEIRA","segmento":"Vip Banking PF","total":12,"naoAderentes":0,"temaMaisErrou":"","pct_inaderente":0.0},{"operador":"SUEMI CARDOSO IAMAMOTO","segmento":"Vip Banking PJ","total":43,"naoAderentes":2,"temaMaisErrou":"ATENDIMENTO | TRANSFERÊNCIAS | DIRECIONADO PARA INTERPAG","pct_inaderente":4.651162790697675},{"operador":"LUCAS DE SOUZA GODOY","segmento":"Meios de Pagamento","total":15,"naoAderentes":0,"temaMaisErrou":"","pct_inaderente":0.0},{"operador":"SUELY GONCALVES PEREIRA","segmento":"Conta Digital","total":41,"naoAderentes":2,"temaMaisErrou":"ATENDIMENTO | TRANSFERÊNCIAS | DIRECIONADO PARA COBRANÇA","pct_inaderente":4.878048780487805},{"operador":"GIULIO RAFAEL NOGUEIRA CRUZ","segmento":"Vip Banking PJ","total":126,"naoAderentes":2,"temaMaisErrou":"CD PJ | SUSPEITA DE FRAUDE | CONTA BLOQUEADA SEM TARJA [BL050]","pct_inaderente":1.5873015873015872},{"operador":"PALOMA DA CRUZ DOS SANTOS","segmento":"Meios de Pagamento","total":96,"naoAderentes":6,"temaMaisErrou":"ATENDIMENTO | TRANSFERÊNCIAS | DIRECIONADO PARA SMALLS","pct_inaderente":6.25},{"operador":"Juliana Tavares Fabricio dos Santos","segmento":"Conta Digital","total":179,"naoAderentes":6,"temaMaisErrou":"CD PF | SUSPEITA DE FRAUDE | TRANSAÇÃO - SEM INDICIOS","pct_inaderente":3.35195530726257},{"operador":"MURILO EDUARDO SOUSA ZAGRIA","segmento":"Conta Digital","total":64,"naoAderentes":9,"temaMaisErrou":"ATENDIMENTO | REGISTROS GERAIS | CONTATO DE TERCEIROS","pct_inaderente":14.0625},{"operador":"LUIS GUSTAVO DO CARMO","segmento":"Vip Banking PF","total":52,"naoAderentes":6,"temaMaisErrou":"ATENDIMENTO | REGISTROS GERAIS | CONTATO DE TERCEIROS","pct_inaderente":11.538461538461538},{"operador":"FRANCIELE DA SILVA","segmento":"Vip Banking PJ","total":68,"naoAderentes":2,"temaMaisErrou":"ATENDIMENTO | TRANSFERÊNCIAS | DIRECIONADO PARA VIP CREDIT","pct_inaderente":2.9411764705882355},{"operador":"MICHELLE GRUPIONI ALVES DE SOUZA ROSSI","segmento":"Meios de Pagamento","total":53,"naoAderentes":2,"temaMaisErrou":"CARTÃO | LIMITE DE CRÉDITO | CLIENTE SOLICITA AUMENTO DO LIMITE","pct_inaderente":3.7735849056603774},{"operador":"FRANCIELE DA SILVA CANINDE","segmento":"Conta Digital","total":112,"naoAderentes":6,"temaMaisErrou":"CD PF | LIMITES DE TRANSAÇÕES | REPROVADA POR SEGURANÇA","pct_inaderente":5.357142857142857},{"operador":"HELOISA HELENA ZEOTI","segmento":"Conta Digital","total":38,"naoAderentes":3,"temaMaisErrou":"MARKETPLACE | ATENDIMENTO | TRANSFERÊNCIA ADVISOR PRIME","pct_inaderente":7.894736842105263},{"operador":"Marinalva Garcia Soares da Silva","segmento":"Conta Digital","total":183,"naoAderentes":10,"temaMaisErrou":"ATENDIMENTO | REGISTROS GERAIS | CONTATO DE TERCEIROS","pct_inaderente":5.46448087431694},{"operador":"LAYANA LARISSA PRALON DAMASCENO","segmento":"Conta Digital","total":49,"naoAderentes":1,"temaMaisErrou":"CD PF | SAQUE | SAQUE DIGITAL","pct_inaderente":2.0408163265306123},{"operador":"LUIS AUGUSTO DA SILVA ALVES","segmento":"Vip Banking PJ","total":50,"naoAderentes":2,"temaMaisErrou":"ATENDIMENTO | TRANSFERÊNCIAS | DIRECIONADO PARA INTERPAG","pct_inaderente":4.0},{"operador":"DANUBIA DAIANA DA SILVA ARAUJO","segmento":"Vip Banking PF","total":39,"naoAderentes":0,"temaMaisErrou":"","pct_inaderente":0.0},{"operador":"Ingrid Aparecida Vitor Leandro","segmento":"Vip Banking PF","total":99,"naoAderentes":4,"temaMaisErrou":"ATENDIMENTO | REGISTROS GERAIS | CONTATO DE TERCEIROS","pct_inaderente":4.040404040404041},{"operador":"LUIS GABRIEL SILVA DE FARIA","segmento":"Meios de Pagamento","total":176,"naoAderentes":10,"temaMaisErrou":"CARTÃO | LIMITE DE CRÉDITO | INFORMAÇÕES GERAIS","pct_inaderente":5.681818181818182},{"operador":"SAMIQ SAYURI RODRIGUES","segmento":"Meios de Pagamento","total":41,"naoAderentes":10,"temaMaisErrou":"CARTÃO | LIMITE DE CRÉDITO | INFORMAÇÕES GERAIS","pct_inaderente":24.390243902439025},{"operador":"CAMILA HELENA LOPES PAIS TENORIO","segmento":"Vip Banking PF","total":61,"naoAderentes":0,"temaMaisErrou":"","pct_inaderente":0.0},{"operador":"Simone Evangelista Guisardi","segmento":"Vip Banking PF","total":47,"naoAderentes":5,"temaMaisErrou":"ATENDIMENTO | REGISTROS GERAIS | CONTATO DE TERCEIROS","pct_inaderente":10.638297872340425},{"operador":"ADRIAN ALEXANDRE DE GODOY DOS SANTOS","segmento":"Meios de Pagamento","total":38,"naoAderentes":2,"temaMaisErrou":"ATENDIMENTO | TRANSFERÊNCIAS | DIRECIONADO PARA EMPRÉSTIMOS","pct_inaderente":5.2631578947368425},{"operador":"NICOLY DE ALMEIDA MOREIRA","segmento":"Vip Banking PF","total":18,"naoAderentes":1,"temaMaisErrou":"CD PF | ACESSO A CONTA | INCONFORMIDADE COM O SISTEMA OPERACIONAL","pct_inaderente":5.555555555555555},{"operador":"CAIO DOS SANTOS DE ALMEIDA","segmento":"Vip Banking PF","total":35,"naoAderentes":2,"temaMaisErrou":"ATENDIMENTO | TRANSFERÊNCIAS | DIRECIONADO PARA COBRANÇA","pct_inaderente":5.714285714285714},{"operador":"FRANCIELI CAROLINE MATSUMOTO","segmento":"Vip Banking PJ","total":47,"naoAderentes":0,"temaMaisErrou":"","pct_inaderente":0.0},{"operador":"NICOLY DE FRANCA BARBOSA","segmento":"Meios de Pagamento","total":44,"naoAderentes":0,"temaMaisErrou":"","pct_inaderente":0.0},{"operador":"LUCIANA SA FREIRE RAMOS","segmento":"Meios de Pagamento","total":60,"naoAderentes":1,"temaMaisErrou":"ATENDIMENTO | TRANSFERÊNCIAS | DIRECIONADO PARA SMALLS","pct_inaderente":1.6666666666666667},{"operador":"ALEXANDRE HENRIQUE DA CRUZ","segmento":"Vip Banking PF","total":73,"naoAderentes":4,"temaMaisErrou":"CARTÃO | LIMITE DE CRÉDITO | INFORMAÇÕES GERAIS","pct_inaderente":5.47945205479452},{"operador":"LUIZA GABRYELLY FERREIRA ROCHA","segmento":"Vip Banking PJ","total":97,"naoAderentes":5,"temaMaisErrou":"ATENDIMENTO | TRANSFERÊNCIAS | DIRECIONADO PARA SMALLS","pct_inaderente":5.154639175257732},{"operador":"YURI ABREU BENITES DE ARRUDA","segmento":"Vip Banking PF","total":71,"naoAderentes":16,"temaMaisErrou":"INTER PAG | ATENDIMENTO | ASSUNTO NÃO IDENTIFICADO","pct_inaderente":22.535211267605632},{"operador":"GIOVANA RODRIGUES MORAIS SALGADO","segmento":"Conta Digital","total":14,"naoAderentes":2,"temaMaisErrou":"CARTÃO | LIMITE DE CRÉDITO | INFORMAÇÕES GERAIS","pct_inaderente":14.285714285714286},{"operador":"MEIRE ELLEN GRAZIELE DE CASTRO","segmento":"Conta Digital","total":3,"naoAderentes":0,"temaMaisErrou":"","pct_inaderente":0.0},{"operador":"MIRIA AMARAL PEREIRA DOS SANTOS","segmento":"Vip Banking PF","total":34,"naoAderentes":2,"temaMaisErrou":"ATENDIMENTO | TRANSFERÊNCIAS | DIRECIONADO PARA VIP BANKING PJ","pct_inaderente":5.882352941176471},{"operador":"TATIANA SANTANA DE NEGREIROS","segmento":"Investimentos","total":90,"naoAderentes":3,"temaMaisErrou":"ATENDIMENTO | TRANSFERÊNCIAS | DIRECIONADO PARA EMPRÉSTIMOS","pct_inaderente":3.3333333333333335},{"operador":"ANDREIA CRISTINA RODRIGUES DE OLIVEIRA","segmento":"Conta Digital","total":101,"naoAderentes":3,"temaMaisErrou":"ATENDIMENTO | TRANSFERÊNCIAS | DIRECIONADO PARA SMALLS","pct_inaderente":2.9702970297029703},{"operador":"LETICIA BARCELOS GOMES FERREIRA","segmento":"Meios de Pagamento","total":86,"naoAderentes":1,"temaMaisErrou":"CD PF | SAQUE | SAQUE DIGITAL","pct_inaderente":1.1627906976744187},{"operador":"Henrique Del Masso Goes Rodrigues","segmento":"Vip Banking PJ","total":37,"naoAderentes":4,"temaMaisErrou":"CD PJ | LINK DE PAGAMENTO | ORIENTAÇÕES GERAIS","pct_inaderente":10.81081081081081},{"operador":"Evelyn Meirielly Alves Cordeiro","segmento":"Investimentos","total":113,"naoAderentes":1,"temaMaisErrou":"ATENDIMENTO | REGISTROS GERAIS | CONTATO DE TERCEIROS","pct_inaderente":0.8849557522123894},{"operador":"THAINA MAZZONI GAIA CAMPOS","segmento":"Meios de Pagamento","total":5,"naoAderentes":0,"temaMaisErrou":"","pct_inaderente":0.0},{"operador":"VALERIA APARECIDA BOTELHO","segmento":"Meios de Pagamento","total":45,"naoAderentes":0,"temaMaisErrou":"","pct_inaderente":0.0},{"operador":"MARIANA ADORNO MOREIRA","segmento":"Meios de Pagamento","total":39,"naoAderentes":1,"temaMaisErrou":"ATENDIMENTO | TRANSFERÊNCIAS | DIRECIONADO PARA CRÉDITO TRABALHADOR","pct_inaderente":2.5641025641025643},{"operador":"CAMILA MANZATTO DEGRANDI SANTOS","segmento":"Conta Digital","total":26,"naoAderentes":2,"temaMaisErrou":"CD PF | SAQUE | SAQUE DIGITAL","pct_inaderente":7.6923076923076925},{"operador":"KAUA MOTTA CRUZ","segmento":"Vip Banking PJ","total":71,"naoAderentes":2,"temaMaisErrou":"ATENDIMENTO | REGISTROS GERAIS | CONTATO DE TERCEIROS","pct_inaderente":2.816901408450704},{"operador":"BEATRIZ LOUREIRO SOUZA SENNA","segmento":"Meios de Pagamento","total":25,"naoAderentes":2,"temaMaisErrou":"CD PF | SAQUE | SAQUE DIGITAL","pct_inaderente":8.0},{"operador":"CARLA LOPES DA SILVA","segmento":"Meios de Pagamento","total":64,"naoAderentes":1,"temaMaisErrou":"ATENDIMENTO | TRANSFERÊNCIAS | DIRECIONADO PARA CRÉDITO TRABALHADOR","pct_inaderente":1.5625},{"operador":"ISABELLA GUIJO CAETANO","segmento":"Vip Banking PF","total":15,"naoAderentes":1,"temaMaisErrou":"ATENDIMENTO | TRANSFERÊNCIAS | DIRECIONADO PARA SMALLS","pct_inaderente":6.666666666666667},{"operador":"ADRIAN THIAGO BARBOSA VIANA NOGUEIRA","segmento":"Vip Banking PF","total":20,"naoAderentes":0,"temaMaisErrou":"","pct_inaderente":0.0},{"operador":"Cristiane Gonçalves da Silva","segmento":"Vip Banking PJ","total":43,"naoAderentes":1,"temaMaisErrou":"INVESTIMENTOS | SUPORTE INVESTIDOR | TRANSFERÊNCIA DE CUSTÓDIA (SAÍDA)","pct_inaderente":2.3255813953488373},{"operador":"Tatiana Brito de Moura Lobo Fabricio","segmento":"Meios de Pagamento","total":38,"naoAderentes":7,"temaMaisErrou":"CARTÃO | LIMITE DE CRÉDITO | INFORMAÇÕES GERAIS","pct_inaderente":18.42105263157895},{"operador":"MARA ANDRESSA FERREIRA OKIISHI","segmento":"Vip Banking PF","total":18,"naoAderentes":0,"temaMaisErrou":"","pct_inaderente":0.0},{"operador":"CARLOS ROBERTO FERREIRA GARCIA","segmento":"Meios de Pagamento","total":120,"naoAderentes":3,"temaMaisErrou":"CD PF | SUSPEITA DE FRAUDE | TRANSAÇÃO - SEM INDICIOS","pct_inaderente":2.5},{"operador":"LUCAS GABRIEL NEGRI DO NASCIMENTO","segmento":"Investimentos","total":39,"naoAderentes":1,"temaMaisErrou":"ATENDIMENTO | TRANSFERÊNCIAS | DIRECIONADO PARA VIP BANKING PJ","pct_inaderente":2.5641025641025643},{"operador":"Magaiver Soares","segmento":"Vip Banking PF","total":38,"naoAderentes":12,"temaMaisErrou":"ATENDIMENTO | REGISTROS GERAIS | CONTATO DE TERCEIROS","pct_inaderente":31.57894736842105},{"operador":"LARISSA TEIXEIRA DA SILVA","segmento":"Conta Digital","total":23,"naoAderentes":4,"temaMaisErrou":"ATENDIMENTO | TRANSFERÊNCIAS | DIRECIONADO PARA VIP BANKING PJ","pct_inaderente":17.391304347826086},{"operador":"KAROLAINE RODRIGUES PALAMONI","segmento":"Conta Digital","total":101,"naoAderentes":5,"temaMaisErrou":"CD PF | SUSPEITA DE FRAUDE | TRANSAÇÃO - SEM INDICIOS","pct_inaderente":4.9504950495049505},{"operador":"GLAUCIA DE BRITO DA SILVA","segmento":"Vip Banking PJ","total":49,"naoAderentes":14,"temaMaisErrou":"ATENDIMENTO | REGISTROS GERAIS | CONTATO DE TERCEIROS","pct_inaderente":28.571428571428573},{"operador":"MATEUS ELIAS DE LIRA ROCHA","segmento":"Conta Digital","total":58,"naoAderentes":12,"temaMaisErrou":"CARTÃO | LIMITE DE CRÉDITO | INFORMAÇÕES GERAIS","pct_inaderente":20.689655172413794},{"operador":"ALEX PEDRO DE SOUZA GOMES","segmento":"Meios de Pagamento","total":73,"naoAderentes":2,"temaMaisErrou":"ATENDIMENTO | TRANSFERÊNCIAS | DIRECIONADO PARA CONTA PF/MEI","pct_inaderente":2.73972602739726},{"operador":"JOSLENE LIMA BERTAZZO","segmento":"Vip Banking PF","total":34,"naoAderentes":1,"temaMaisErrou":"ATENDIMENTO | TRANSFERÊNCIAS | DIRECIONADO PARA COBRANÇA","pct_inaderente":2.9411764705882355},{"operador":"AMANDA SCIOLPI ZAGO","segmento":"Conta Digital","total":19,"naoAderentes":0,"temaMaisErrou":"","pct_inaderente":0.0},{"operador":"JEAN LOUIS FRANCINO MARTINS","segmento":"Meios de Pagamento","total":16,"naoAderentes":0,"temaMaisErrou":"","pct_inaderente":0.0},{"operador":"LUIS MIGUEL ALTINO","segmento":"Meios de Pagamento","total":27,"naoAderentes":0,"temaMaisErrou":"","pct_inaderente":0.0},{"operador":"Renan Caixeta da Silva","segmento":"Meios de Pagamento","total":39,"naoAderentes":0,"temaMaisErrou":"","pct_inaderente":0.0},{"operador":"SHIRLEI MATEUS DA SILVA","segmento":"Vip Banking PF","total":105,"naoAderentes":8,"temaMaisErrou":"ATENDIMENTO | REGISTROS GERAIS | CONTATO DE TERCEIROS","pct_inaderente":7.619047619047619},{"operador":"VERONICA LAUDIANE FERREIRA MACEDO","segmento":"Conta Digital","total":37,"naoAderentes":2,"temaMaisErrou":"CD PF | SUSPEITA DE FRAUDE | TRANSAÇÃO - SEM INDICIOS","pct_inaderente":5.405405405405405},{"operador":"FABRICIO FURLANETTO","segmento":"Vip Banking PJ","total":24,"naoAderentes":0,"temaMaisErrou":"","pct_inaderente":0.0},{"operador":"VIKTOR HUGO DOS SANTOS PINTO","segmento":"Vip Banking PJ","total":22,"naoAderentes":2,"temaMaisErrou":"ATENDIMENTO | TRANSFERÊNCIAS | DIRECIONADO PARA SMALLS","pct_inaderente":9.090909090909092},{"operador":"MICHELLE JANDIRA HENRIQUE CAMPAGNUCCI","segmento":"Conta Digital","total":19,"naoAderentes":2,"temaMaisErrou":"CD PF | SUSPEITA DE FRAUDE | TRANSAÇÃO - SEM INDICIOS","pct_inaderente":10.526315789473685},{"operador":"GUILHERME CREDENDIO TUCUNDUVA","segmento":"Regulamentados","total":28,"naoAderentes":1,"temaMaisErrou":"ATENDIMENTO | TRANSFERÊNCIAS | DIRECIONADO PARA CRÉDITO TRABALHADOR","pct_inaderente":3.5714285714285716},{"operador":"ANA LAURA DIAS","segmento":"Investimentos","total":19,"naoAderentes":2,"temaMaisErrou":"ATENDIMENTO | REGISTROS GERAIS | CONTATO DE TERCEIROS","pct_inaderente":10.526315789473685},{"operador":"AMANDA CRISTINA CARDOSO D AVILA","segmento":"Vip Banking PF","total":30,"naoAderentes":0,"temaMaisErrou":"","pct_inaderente":0.0},{"operador":"THAMIRES MARQUES DO SANTOS DE ANDRADE","segmento":"Conta Digital","total":1,"naoAderentes":0,"temaMaisErrou":"","pct_inaderente":0.0},{"operador":"GABRIEL GUEDES GUIMARAES","segmento":"Investimentos","total":8,"naoAderentes":0,"temaMaisErrou":"","pct_inaderente":0.0},{"operador":"Juliane Vitória de Souza Silva","segmento":"Vip Banking PF","total":25,"naoAderentes":1,"temaMaisErrou":"ATENDIMENTO | REGISTROS GERAIS | CONTATO DE TERCEIROS","pct_inaderente":4.0},{"operador":"ANA MARCIA DE CARVALHO","segmento":"Conta Digital","total":8,"naoAderentes":0,"temaMaisErrou":"","pct_inaderente":0.0},{"operador":"GUILHERME JEFERSON DOS SANTOS BARBOSA","segmento":"Conta Digital","total":4,"naoAderentes":1,"temaMaisErrou":"ATENDIMENTO | TRANSFERÊNCIAS | DIRECIONADO PARA CONTA PJ","pct_inaderente":25.0},{"operador":"MARLEI APARECIDA RIBEIRO","segmento":"Meios de Pagamento","total":8,"naoAderentes":0,"temaMaisErrou":"","pct_inaderente":0.0},{"operador":"BRUNA LUIZA SOUZA DOS SANTOS","segmento":"Vip Banking PJ","total":27,"naoAderentes":1,"temaMaisErrou":"ATENDIMENTO | REGISTROS GERAIS | CONTATO DE TERCEIROS","pct_inaderente":3.7037037037037037},{"operador":"JAMILLY VICTORIA DOS SANTOS DUARTE","segmento":"Conta Digital","total":6,"naoAderentes":0,"temaMaisErrou":"","pct_inaderente":0.0},{"operador":"LIVIA MARIA ANTONIO MARQUES","segmento":"Meios de Pagamento","total":2,"naoAderentes":0,"temaMaisErrou":"","pct_inaderente":0.0},{"operador":"ALINE APARECIDA OLIVEIRA DOS SANTOS","segmento":"Vip Banking PF","total":22,"naoAderentes":0,"temaMaisErrou":"","pct_inaderente":0.0},{"operador":"MARIA CLARA ALVES MOREIRA","segmento":"Conta Digital","total":3,"naoAderentes":1,"temaMaisErrou":"ATENDIMENTO | TRANSFERÊNCIAS | DIRECIONADO PARA CRÉDITO TRABALHADOR","pct_inaderente":33.333333333333336},{"operador":"LAURA MOYO SILVA","segmento":"Meios de Pagamento","total":2,"naoAderentes":0,"temaMaisErrou":"","pct_inaderente":0.0},{"operador":"MARIANA SOARES CUSTODIO","segmento":"Meios de Pagamento","total":8,"naoAderentes":0,"temaMaisErrou":"","pct_inaderente":0.0},{"operador":"ROBERTA ANDRIAO CAMELO","segmento":"Meios de Pagamento","total":1,"naoAderentes":0,"temaMaisErrou":"","pct_inaderente":0.0},{"operador":"THAIS EDUARDA DOS SANTOS RODRIGUES","segmento":"Conta Digital","total":6,"naoAderentes":0,"temaMaisErrou":"","pct_inaderente":0.0},{"operador":"JONAS APARECIDO SILVEIRA JUNIOR","segmento":"Conta Digital","total":1,"naoAderentes":0,"temaMaisErrou":"","pct_inaderente":0.0},{"operador":"Jessica Camille de Souza Silva","segmento":"Vip Banking PF","total":15,"naoAderentes":0,"temaMaisErrou":"","pct_inaderente":0.0},{"operador":"LIDIANE SILVA DA COSTA DOS SANTOS","segmento":"Conta Digital","total":8,"naoAderentes":1,"temaMaisErrou":"ATENDIMENTO | TRANSFERÊNCIAS | DIRECIONADO PARA COBRANÇA","pct_inaderente":12.5},{"operador":"LUCAS VIEIRA AMPUDIA","segmento":"Investimentos","total":2,"naoAderentes":0,"temaMaisErrou":"","pct_inaderente":0.0},{"operador":"Glaucia Fernanda dos Santos","segmento":"—","total":1,"naoAderentes":0,"temaMaisErrou":"","pct_inaderente":0.0},{"operador":"ROGERIO DE LIMA RODRIGUES","segmento":"—","total":1,"naoAderentes":0,"temaMaisErrou":"","pct_inaderente":0.0},{"operador":"LEANDRO AMARO RODRIGUES","segmento":"Meios de Pagamento","total":3,"naoAderentes":0,"temaMaisErrou":"","pct_inaderente":0.0},{"operador":"ANY KAROLINY HORTELAO AMORIM","segmento":"Meios de Pagamento","total":1,"naoAderentes":0,"temaMaisErrou":"","pct_inaderente":0.0}]};
+
+    const fmtInt = (n) => (n ?? 0).toLocaleString("pt-BR");
+    const pct = (num, den) => den ? (100 * num / den) : 0;
+    const fmtPct = (v) => `${v.toFixed(2).replace(".", ",")}%`;
+    const WHITE = "#ffffff";
+
+    function enrichSegments(list){
+      return list.map(s => {
+        const nao = (s.qtde ?? 0) - (s.aderentes ?? 0);
+        const p = pct(s.aderentes ?? 0, s.qtde ?? 0);
+        return { ...s, naoAderentes: nao, pctAderente: p };
+      }).sort((a,b) => b.pctAderente - a.pctAderente);
+    }
+
+    const segments = enrichSegments(DATA.segmentos || []);
+
+    const filter = document.getElementById("segmentFilter");
+    const searchBox = document.getElementById("searchBox");
+
+    ["Todos", ...segments.map(s=>s.segmento)].forEach(o=>{
+      const opt = document.createElement("option");
+      opt.value = o; opt.textContent = o;
+      filter.appendChild(opt);
+    });
+
+    function getFiltered(){
+      const f = filter.value;
+      const q = (searchBox.value || "").trim().toLowerCase();
+      let list = segments;
+      if (f && f !== "Todos") list = list.filter(s=>s.segmento===f);
+      if (q) list = list.filter(s=>String(s.segmento||"").toLowerCase().includes(q));
+      return list;
+    }
+
+    function renderKPIs(list){
+      const t = list.reduce((a,s)=>a+s.qtde,0);
+      const ad = list.reduce((a,s)=>a+s.aderentes,0);
+      const na = t - ad;
+
+      document.getElementById("kpiAderencia").textContent = fmtPct(pct(ad,t)).replace("%","");
+      document.getElementById("kpiDesvio").textContent = fmtPct(pct(na,t)).replace("%","");
+
+      document.getElementById("kpiTotal").textContent = `${fmtInt(t)} registros`;
+      document.getElementById("kpiAderentes").textContent = `${fmtInt(ad)} aderentes`;
+      document.getElementById("kpiNaoAderentes").textContent = `${fmtInt(na)} não-aderentes`;
+
+      document.getElementById("kpiSegmentos").textContent = `${fmtInt(list.length)}`;
+
+      const worst = [...list].sort((a,b)=>a.pctAderente - b.pctAderente)[0];
+      document.getElementById("kpiPior").textContent = worst ? `${worst.segmento} (${fmtPct(worst.pctAderente)})` : "—";
+
+      const pA = pct(ad,t);
+      const statusBox = document.getElementById("statusBox");
+      const statusText = document.getElementById("statusText");
+      statusBox.classList.remove("warn","bad");
+
+      if (pA >= 92) {
+        statusText.textContent = "Aderência alta (boa sustentação para justificar registro correto)";
+      } else if (pA >= 88) {
+        statusBox.classList.add("warn");
+        statusText.textContent = "Aderência moderada (avaliar multitema/temas genéricos)";
+      } else {
+        statusBox.classList.add("bad");
+        statusText.textContent = "Aderência baixa (revisar taxonomia e treinamento)";
+      }
+    }
+
+    function renderTable(list){
+      const tbody = document.getElementById("tableBody");
+      tbody.innerHTML = "";
+      list.slice().sort((a,b)=> b.qtde - a.qtde).forEach(s=>{
+        const tr = document.createElement("tr");
+        const statusClass = s.pctAderente >= 92 ? "status" : (s.pctAderente >= 88 ? "status warn" : "status bad");
+        const statusText = s.pctAderente >= 92 ? "Ok" : (s.pctAderente >= 88 ? "Atenção" : "Crítico");
+        tr.innerHTML = `
+          <td>${s.segmento}</td>
+          <td class="num">${fmtInt(s.qtde)}</td>
+          <td class="num">${fmtInt(s.aderentes)}</td>
+          <td class="num">${fmtInt(s.naoAderentes)}</td>
+          <td class="pct">${fmtPct(s.pctAderente)}</td>
+          <td><span class="${statusClass}"><span class="dot"></span>${statusText}</span></td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function renderOutliers(filteredSegments){
+      const note = document.getElementById("outlierNote");
+      const tbody = document.getElementById("opBody");
+      tbody.innerHTML = "";
+
+      const activeSegments = new Set(filteredSegments.map(s => s.segmento));
+      const segLabel = activeSegments.size === 1 ? `Segmento: ${[...activeSegments][0]}` : "Segmento: Todos";
+
+      const base = (DATA.operator_stats || []).filter(r => activeSegments.has(r.segmento));
+
+      if (!base.length) {
+        note.textContent = `${segLabel} • Sem dados de operador para o filtro atual.`;
+        const tr = document.createElement("tr");
+        tr.innerHTML = `<td colspan="5" class="muted">Nenhum registro encontrado.</td>`;
+        tbody.appendChild(tr);
+        return;
+      }
+
+      const byOp = new Map();
+
+      for (const r of base) {
+        const op = String(r.operador || "").trim() || "—";
+        const prev = byOp.get(op) || {
+          operador: op,
+          total: 0,
+          naoAderentes: 0,
+          segTotals: new Map(),
+          // acumulador de temas por NA (pra acertar melhor no modo "Todos")
+          temaTotals: new Map()
+        };
+
+        const total = Number(r.total || 0);
+        const nao = Number(r.naoAderentes || 0);
+
+        prev.total += total;
+        prev.naoAderentes += nao;
+        prev.segTotals.set(r.segmento, (prev.segTotals.get(r.segmento) || 0) + total);
+
+        const tema = String(r.temaMaisErrou || "").trim();
+        if (tema) {
+          prev.temaTotals.set(tema, (prev.temaTotals.get(tema) || 0) + nao);
+        }
+
+        byOp.set(op, prev);
+      }
+
+      let rows = Array.from(byOp.values()).map(o => {
+        const pctInad = o.total ? (100 * o.naoAderentes / o.total) : 0;
+
+        let segmentoPrincipal = "—";
+        if (activeSegments.size === 1) {
+          segmentoPrincipal = [...activeSegments][0];
+        } else {
+          let bestSeg="—", bestVol=-1;
+          for (const [seg, vol] of o.segTotals.entries()) {
+            if (vol > bestVol) { bestVol = vol; bestSeg = seg; }
+          }
+          segmentoPrincipal = bestSeg;
+        }
+
+        // tema mais frequente somando NA
+        let temaTop = "—";
+        if (o.temaTotals.size) {
+          let bestT="—", bestV=-1;
+          for (const [t,v] of o.temaTotals.entries()) {
+            if (v > bestV) { bestV=v; bestT=t; }
+          }
+          temaTop = bestT;
+        }
+
+        return {
+          operador: o.operador,
+          segmentoPrincipal,
+          total: o.total,
+          pctInaderente: pctInad,
+          temaTop
+        };
+      });
+
+      rows = rows.filter(r => r.total >= MIN_N);
+      rows.sort((a,b)=> b.pctInaderente - a.pctInaderente);
+      const shown = rows.slice(0, TOP_N);
+
+      note.textContent = `${segLabel} • Critério: mínimo de ${fmtInt(MIN_N)} casos • Top ${TOP_N} por % inaderente`;
+
+      if (!shown.length) {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `<td colspan="5" class="muted">Sem operadores suficientes com o mínimo de ${fmtInt(MIN_N)} casos.</td>`;
+        tbody.appendChild(tr);
+        return;
+      }
+
+      for (const r of shown) {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>${r.operador}</td>
+          <td>${r.segmentoPrincipal}</td>
+          <td class="num">${fmtInt(r.total)}</td>
+          <td class="pct">${String(r.pctInaderente.toFixed(2)).replace(".", ",")}%</td>
+          <td>${r.temaTop}</td>
+        `;
+        tbody.appendChild(tr);
+      }
+    }
+
+    let barChart, donutChart;
+    if (window.ChartDataLabels) Chart.register(ChartDataLabels);
+
+    function renderCharts(list){
+      const labels = list.map(s=>s.segmento);
+      const values = list.map(s=>Number(s.pctAderente.toFixed(2)));
+
+      const ctxBar = document.getElementById("barChart");
+      const ctxDonut = document.getElementById("donutChart");
+
+      if (barChart) barChart.destroy();
+      if (donutChart) donutChart.destroy();
+
+      barChart = new Chart(ctxBar, {
+        type: "bar",
+        data: { labels, datasets: [{ label: "% Aderente", data: values }] },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: { callbacks: { label: (c)=> `% Aderente: ${String(c.raw).replace(".", ",")}%` } }
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              max: 100,
+              ticks: { color: WHITE, callback: (v)=> `${v}%` },
+              grid: { color: "rgba(255,255,255,.06)" }
+            },
+            x: { ticks: { color: WHITE }, grid: { display:false } }
+          }
+        }
+      });
+
+      const t = list.reduce((a,s)=>a+s.qtde,0);
+      const ad = list.reduce((a,s)=>a+s.aderentes,0);
+      const na = t - ad;
+
+      donutChart = new Chart(ctxDonut, {
+        type: "doughnut",
+        data: {
+          labels: ["Aderentes", "Não-aderentes"],
+          datasets: [{ data: [ad, na] }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          cutout: "64%",
+          plugins: {
+            legend: { labels: { color: WHITE } },
+            datalabels: {
+              color: WHITE,
+              font: { weight: "800", size: 16 },
+              formatter: (value, ctx) => {
+                const sum = ctx.chart.data.datasets[0].data.reduce((a,b)=>a+b,0);
+                const p = sum ? (100 * value / sum) : 0;
+                return `${p.toFixed(1).replace(".", ",")}%`;
+              }
+            }
+          }
+        }
+      });
+    }
+
+    function render(){
+      const list = enrichSegments(getFiltered());
+      renderKPIs(list);
+      renderTable(list);
+      renderCharts(list);
+      renderOutliers(list);
+    }
+
+    filter.addEventListener("change", render);
+    searchBox.addEventListener("input", render);
+    render();
+  </script>
+</body>
+</html>
